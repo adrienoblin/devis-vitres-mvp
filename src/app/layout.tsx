@@ -5,12 +5,12 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ProDevis Vitres | Application de chiffrage",
+  title: "Wash Up Corp | Application de chiffrage",
   description: "Créez facilement vos devis de nettoyage de vitres.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "ProDevis Vitres",
+    title: "Wash Up Corp",
   },
 };
 

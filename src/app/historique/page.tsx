@@ -1,13 +1,18 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { ClipboardList, Check, X, Trash2, FileText } from 'lucide-react';
+import { ClipboardList, Check, X, Trash2, FileText, MailCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { EmailModal } from '@/components/EmailModal';
+import { DevisData } from '@/lib/store';
+import { generateDevisPDF } from '@/lib/pdf';
 
 export default function HistoriquePage() {
-    const { devisHistory, clients, updateDevis, deleteDevis } = useAppStore();
+    const { devisHistory, clients, updateDevis, deleteDevis, config } = useAppStore();
+    const [emailModalDevis, setEmailModalDevis] = useState<DevisData | null>(null);
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -73,12 +78,32 @@ export default function HistoriquePage() {
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
+                                    <div className="mt-2 text-right">
+                                        <button
+                                            onClick={() => setEmailModalDevis(devis)}
+                                            className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors"
+                                        >
+                                            <MailCheck className="h-4 w-4" /> Envoyer par email
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         );
                     })
                 )}
             </main>
+
+            {emailModalDevis && (
+                <EmailModal
+                    recipientEmail={clients.find(c => c.id === emailModalDevis.clientId)?.email || ''}
+                    clientName={clients.find(c => c.id === emailModalDevis.clientId)?.name || 'Client'}
+                    clientId={emailModalDevis.clientId || ''}
+                    devisDate={format(new Date(emailModalDevis.date), 'dd/MM/yyyy')}
+                    totalAmount={emailModalDevis.totalHT.toFixed(2)}
+                    pdfBase64={generateDevisPDF(emailModalDevis, clients.find(c => c.id === emailModalDevis.clientId), config)}
+                    onClose={() => setEmailModalDevis(null)}
+                />
+            )}
         </div>
     );
 }

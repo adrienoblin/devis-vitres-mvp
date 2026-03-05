@@ -1,13 +1,5 @@
-export type WindowType =
-    | 'classique'
-    | 'baie-vitree'
-    | 'porte-fenetre'
-    | 'velux'
-    | 'vitres-2'
-    | 'vitres-3'
-    | 'vitres-4'
-    | 'vitres-5'
-    | 'autre';
+// To allow dynamic window types, WindowType is now just a string
+export type WindowType = string;
 
 export type Size = 'petite' | 'moyenne' | 'grande' | 'tres-grande';
 export type Height = 'homme' | 'legere' | 'tres-haute';
@@ -23,9 +15,10 @@ export interface WindowItem {
     description?: string; // For "autre"
     prixManuel?: number;  // For "autre"
     note?: string;        // New text
+    isFraisDeplacement?: boolean; // For travel cost
 }
 
-export const BASE_PRICES: Record<WindowType, number> = {
+export const BASE_PRICES: Record<string, number> = {
     'classique': 8,
     'velux': 12,
     'porte-fenetre': 15,
@@ -76,14 +69,14 @@ export const LABELS = {
         'tres-grande': 'Très grande',
     },
     heights: {
-        'homme': 'Hauteur d\'homme',
-        'legere': 'Légèrement haute',
+        'homme': "Hauteur d'homme",
+        'legere': 'Haute',
         'tres-haute': 'Très haute',
     },
     dirtiness: {
         'propre': 'Propre',
         'legere': 'Légèrement sale',
-        'tres-sale': 'Très sale',
+        'tres-sale': 'Sale',
         'remise-en-etat': 'Remise en état',
     }
 };
@@ -97,16 +90,30 @@ interface PricingConfigParams {
         height: Record<Height, number>;
         dirtiness: Record<Dirtiness, number>;
     };
+    windowTypes?: { id: string, name: string, price: number }[];
 }
 
 export function calculateWindowPrice(item: Omit<WindowItem, 'id'>, config: PricingConfigParams): number {
     if (item.type === 'autre' && item.prixManuel !== undefined) {
         return item.prixManuel * item.quantity;
     }
-    const basePrice = config.prices[item.type] || 0;
+    let basePrice = 0;
+    if (config.windowTypes) {
+        const wt = config.windowTypes.find(w => w.id === item.type);
+        if (wt) basePrice = wt.price;
+        else basePrice = config.prices[item.type] || 0;
+    } else {
+        basePrice = config.prices[item.type] || 0;
+    }
+
     const sizeMult = config.multipliers.size[item.size] || 1;
     const heightMult = config.multipliers.height[item.height] || 1;
     const dirtMult = config.multipliers.dirtiness[item.dirtiness] || 1;
+
+    // Frais de déplacement doesn't have multipliers
+    if (item.isFraisDeplacement) {
+        return item.prixManuel || 0; // Already calculated
+    }
 
     return basePrice * sizeMult * heightMult * dirtMult * item.quantity;
 }

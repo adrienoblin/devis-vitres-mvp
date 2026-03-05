@@ -2,17 +2,35 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore, ClientData, DevisData } from '@/lib/store';
-import { Users, Plus, Edit2, Trash2, ChevronLeft, MapPin, Phone, Mail, FileText, Camera } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, ChevronLeft, MapPin, Phone, Mail, FileText, Camera, MailCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { EmailModal } from '@/components/EmailModal';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { syncHubspotContacts, processOfflineTasks } from '@/lib/hubspot';
+import { generateDevisPDF } from '@/lib/pdf';
 
 type ViewMode = 'list' | 'detail' | 'form';
 
 export default function ClientsPage() {
-    const { clients, addClient, updateClient, deleteClient, devisHistory } = useAppStore();
+    const { clients, addClient, updateClient, deleteClient, devisHistory, config, addOfflineTask } = useAppStore();
     const [view, setView] = useState<ViewMode>('list');
     const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
+    const router = useRouter();
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const u = new URLSearchParams(window.location.search);
+            if (u.get('new') === 'true') {
+                handleCreateNew();
+                window.history.replaceState(null, '', '/clients');
+            }
+        }
+    }, []);
 
     // Form state
     const [formData, setFormData] = useState<Partial<ClientData>>({});
@@ -20,7 +38,7 @@ export default function ClientsPage() {
 
     const handleCreateNew = () => {
         setFormData({
-            name: '', phone: '', email: '', address: '', notes: '', photo: ''
+            firstname: '', lastname: '', name: '', phone: '', email: '', address: '', notes: '', photo: ''
         });
         setSelectedClient(null);
         setView('form');
@@ -34,17 +52,32 @@ export default function ClientsPage() {
     };
 
     const handleSave = () => {
-        if (!formData.name) return alert('Le nom est requis');
+        if (!formData.firstname && !formData.name) return alert('Le prénom ou nom est requis');
+
+        const fullname = formData.name || `${formData.firstname || ''} ${formData.lastname || ''}`.trim();
 
         if (selectedClient) {
-            updateClient(selectedClient.id, formData);
+            updateClient(selectedClient.id, { ...formData, name: fullname });
         } else {
+            const newId = uuidv4();
             const newClient: ClientData = {
                 ...formData,
-                id: uuidv4(),
+                id: newId,
+                name: fullname,
+                firstname: formData.firstname || '',
+                lastname: formData.lastname || '',
                 createdAt: new Date().toISOString(),
+                needsSync: true
             } as ClientData;
+
             addClient(newClient);
+            addOfflineTask({
+                id: uuidv4(),
+                type: 'CREATE_CONTACT',
+                payload: newClient,
+                createdAt: new Date().toISOString()
+            });
+            processOfflineTasks();
         }
         setView('list');
     };
@@ -68,14 +101,53 @@ export default function ClientsPage() {
         }
     };
 
+    const handleSync = async () => {
+        if (!config.hubspot.token) {
+            alert('Veuillez configurer votre token HubSpot dans les paramètres.');
+            return;
+        }
+        setIsSyncing(true);
+        await processOfflineTasks(); // Try to upload offline stuff first
+        const success = await syncHubspotContacts();
+        setIsSyncing(false);
+        if (success) {
+            // alert('Synchronisation réussie !');
+        } else {
+            alert('Erreur lors de la synchronisation.');
+        }
+    };
+
+    const filteredClients = clients.filter(c => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return (c.firstname?.toLowerCase().includes(q) ||
+            c.lastname?.toLowerCase().includes(q) ||
+            c.name?.toLowerCase().includes(q) ||
+            c.email?.toLowerCase().includes(q) ||
+            c.phone?.toLowerCase().includes(q));
+    }).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
     const renderClientList = () => (
         <div className="space-y-4">
-            {clients.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 flex gap-2">
+                <input
+                    type="text"
+                    placeholder="Rechercher (nom, email, tél...)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 bg-slate-50 border-none outline-none px-3 py-2 text-sm rounded-lg"
+                />
+                <Button variant="secondary" size="sm" onClick={handleSync} disabled={isSyncing} className="whitespace-nowrap">
+                    {isSyncing ? 'Sync...' : '🔄 Sync HubSpot'}
+                </Button>
+            </div>
+
+            {filteredClients.length === 0 ? (
                 <div className="text-center py-10 bg-white rounded-xl shadow-sm border border-slate-200 text-slate-500">
-                    Aucun client trouvé. Cliquez sur Ajouter un client.
+                    Aucun client trouvé.
                 </div>
             ) : (
-                clients.map(client => (
+                filteredClients.map(client => (
                     <div
                         key={client.id}
                         onClick={() => { setSelectedClient(client); setView('detail'); }}
@@ -113,6 +185,23 @@ export default function ClientsPage() {
     );
 
     const [showModal, setShowModal] = useState<DevisData | null>(null);
+    const [showEmailModal, setShowEmailModal] = useState<DevisData | null>(null);
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
+
+    useEffect(() => {
+        let objectUrl = '';
+        if (showModal && selectedClient) {
+            const b64 = generateDevisPDF(showModal, selectedClient, config);
+            fetch(b64).then(res => res.blob()).then(blob => {
+                objectUrl = URL.createObjectURL(blob);
+                setPdfPreviewUrl(objectUrl);
+            });
+        }
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            setPdfPreviewUrl('');
+        };
+    }, [showModal, selectedClient, config]);
 
     const renderClientDetail = () => {
         if (!selectedClient) return null;
@@ -137,7 +226,10 @@ export default function ClientsPage() {
                     <div className="p-5">
                         <div className="flex justify-between items-start mb-4">
                             <h2 className="text-2xl font-black text-slate-800">{selectedClient.name}</h2>
-                            <Button size="sm" variant="outline" onClick={() => handleEdit(selectedClient)}><Edit2 className="h-4 w-4 mr-2" /> Modifier</Button>
+                            <div className="flex gap-2">
+                                <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => router.push(`/devis?client=${selectedClient.id}`)}><FileText className="h-4 w-4 mr-1" /> Devis</Button>
+                                <Button size="sm" variant="outline" onClick={() => handleEdit(selectedClient)}><Edit2 className="h-4 w-4" /></Button>
+                            </div>
                         </div>
 
                         <div className="space-y-3 mb-6">
@@ -177,8 +269,8 @@ export default function ClientsPage() {
                                             <div className="text-right">
                                                 <span className="font-bold text-blue-700 block">{devis.totalHT.toFixed(2)}€</span>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${devis.statut === 'accepte' ? 'bg-green-100 text-green-700' :
-                                                        devis.statut === 'refuse' ? 'bg-red-100 text-red-700' :
-                                                            'bg-slate-200 text-slate-600'
+                                                    devis.statut === 'refuse' ? 'bg-red-100 text-red-700' :
+                                                        'bg-slate-200 text-slate-600'
                                                     }`}>
                                                     {devis.statut === 'accepte' ? 'Accepté' : devis.statut === 'refuse' ? 'Refusé' : 'En attente'}
                                                 </span>
@@ -197,42 +289,50 @@ export default function ClientsPage() {
                     </div>
                 </div>
 
-                {/* MODAL RÉSUMÉ */}
+                {/* MODAL RÉSUMÉ / PDF PREVIEW */}
                 {showModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="bg-blue-800 text-white p-4 flex justify-between items-center">
-                                <h3 className="font-bold">Devis du {format(new Date(showModal.date), 'dd/MM/yy')}</h3>
-                                <button onClick={() => setShowModal(null)} className="text-blue-200 hover:text-white font-bold p-1">X</button>
-                            </div>
-                            <div className="p-5 space-y-4">
-                                <div>
-                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Client</p>
-                                    <p className="font-bold text-slate-800">{selectedClient.name}</p>
+                    <div className="fixed inset-0 z-50 flex flex-col p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="flex justify-between items-center mb-4 text-white">
+                            <h3 className="font-bold text-lg">Aperçu du Devis</h3>
+                            <button onClick={() => setShowModal(null)} className="p-2 hover:bg-white/10 rounded-full"><X className="h-6 w-6" /></button>
+                        </div>
+
+                        <div className="flex-1 bg-white rounded-xl overflow-hidden shadow-2xl mb-4 relative">
+                            {/* iFrame for PDF Preview */}
+                            {pdfPreviewUrl ? (
+                                <iframe
+                                    src={pdfPreviewUrl}
+                                    className="w-full h-full border-none"
+                                    title="Aperçu PDF"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                    Chargement de l'aperçu...
                                 </div>
-                                <div>
-                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider">Total</p>
-                                    <p className="text-2xl font-black text-blue-700">{showModal.totalHT.toFixed(2)} € <span className="text-sm font-medium text-slate-500">HTVA</span></p>
-                                </div>
-                                <div className="bg-slate-50 rounded-lg border border-slate-100 p-3">
-                                    <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-2">Détail {showModal.items.length} prestations</p>
-                                    <ul className="space-y-1">
-                                        {showModal.items.map((i: any) => (
-                                            <li key={i.id} className="text-sm text-slate-700 flex justify-between">
-                                                <span>✅ {i.quantity}x {i.type === 'autre' ? (i.description || 'Prestation') : i.type}</span>
-                                                {i.note && <span className="text-xs text-amber-600 block pl-5 truncate bg-amber-50 px-1 rounded">({i.note})</span>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                                {showModal.notes && (
-                                    <div className="bg-blue-50 text-blue-800 p-3 rounded-lg text-sm">
-                                        <strong>Notes globales :</strong> {showModal.notes}
-                                    </div>
-                                )}
-                            </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Button variant="outline" onClick={() => setShowModal(null)} className="flex-1 bg-white/10 text-white border-white/20 hover:bg-white/20 h-14">
+                                Fermer
+                            </Button>
+                            <Button onClick={() => setShowEmailModal(showModal)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 shadow-lg">
+                                <MailCheck className="h-5 w-5 mr-2" /> Envoyer par email
+                            </Button>
                         </div>
                     </div>
+                )}
+
+                {showEmailModal && selectedClient && (
+                    <EmailModal
+                        recipientEmail={selectedClient.email || ''}
+                        clientName={selectedClient.name}
+                        clientId={selectedClient.id!}
+                        devisDate={format(new Date(showEmailModal.date), 'dd/MM/yyyy')}
+                        totalAmount={showEmailModal.totalHT.toFixed(2)}
+                        pdfBase64={generateDevisPDF(showEmailModal, selectedClient, config)}
+                        onClose={() => setShowEmailModal(null)}
+                    />
                 )}
             </div>
         );
@@ -249,15 +349,27 @@ export default function ClientsPage() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1">Nom Complet *</label>
-                    <input
-                        type="text"
-                        value={formData.name || ''}
-                        onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-                        className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="Jean Dupont"
-                    />
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Prénom</label>
+                        <input
+                            type="text"
+                            value={formData.firstname || ''}
+                            onChange={(e) => setFormData(p => ({ ...p, firstname: e.target.value }))}
+                            className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Jean"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Nom</label>
+                        <input
+                            type="text"
+                            value={formData.lastname || ''}
+                            onChange={(e) => setFormData(p => ({ ...p, lastname: e.target.value }))}
+                            className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Dupont"
+                        />
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

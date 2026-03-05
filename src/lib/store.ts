@@ -14,15 +14,35 @@ export interface PricingConfig {
         nom: string;
         logo?: string;
     };
+    hubspot: {
+        token: string;
+        lastSync: string | null;
+    };
+    email: {
+        address: string;
+        password: string;
+    };
+    windowTypes: {
+        id: string;
+        name: string;
+        price: number;
+    }[];
+    travel: {
+        startAddress: string;
+        pricePerKm: number;
+    };
 }
 
 export interface ClientData {
-    id: string;
-    name: string;
+    id: string; // will be hs_object_id if synced
+    firstname: string;
+    lastname: string;
+    name: string; // fullname for backward compatibility
     phone: string;
     email: string;
     address: string;
     notes: string;
+    needsSync?: boolean;
     photo?: string; // base64
     lastDevisTotal?: number;
     lastVisitDate?: string;
@@ -41,12 +61,22 @@ export interface DevisData {
     notes: string;
     signature?: string;
     photos: { windowId: string; photoBase64: string }[];
+    needsSync?: boolean; // if we need to upload this quote to hubspot
+}
+
+export interface OfflineTask {
+    id: string;
+    type: 'CREATE_CONTACT' | 'UPLOAD_QUOTE' | 'EMAIL_SENT';
+    payload: any;
+    createdAt: string;
+    error?: string;
 }
 
 interface AppState {
     config: PricingConfig;
     clients: ClientData[];
     devisHistory: DevisData[];
+    offlineTasks: OfflineTask[];
 
     setConfig: (config: PricingConfig) => void;
     updateConfig: (configPartial: Partial<PricingConfig>) => void;
@@ -58,9 +88,14 @@ interface AppState {
     addDevis: (devis: DevisData) => void;
     updateDevis: (id: string, devis: Partial<DevisData>) => void;
     deleteDevis: (id: string) => void;
+
+    setClients: (clients: ClientData[]) => void;
+    addOfflineTask: (task: OfflineTask) => void;
+    removeOfflineTask: (id: string) => void;
+    updateOfflineTask: (id: string, updates: Partial<OfflineTask>) => void;
 }
 
-const DEFAULT_CONFIG: PricingConfig = {
+export const DEFAULT_CONFIG: PricingConfig = {
     prices: {
         'classique': 12,
         'baie-vitree': 25,
@@ -93,8 +128,28 @@ const DEFAULT_CONFIG: PricingConfig = {
     },
     cgv: "1. Les devis sont valables 30 jours.\n2. Le paiement est dû à réception de la facture.\n3. En cas de non-paiement, des pénalités de retard pourront être appliquées.",
     enterprise: {
-        nom: "ProDevis Vitres",
+        nom: "Wash Up Corp",
         logo: "",
+    },
+    hubspot: {
+        token: "",
+        lastSync: null,
+    },
+    email: {
+        address: "",
+        password: "",
+    },
+    windowTypes: [
+        { id: 'classique', name: 'Classique', price: 12 },
+        { id: 'porte-fenetre', name: 'Porte fenêtre', price: 15 },
+        { id: 'baie-vitree', name: 'Baie vitrée', price: 25 },
+        { id: 'velux', name: 'Vélux', price: 18 },
+        { id: 'pans-veranda', name: 'Pans véranda', price: 20 },
+        { id: 'bulle', name: 'Bulle', price: 30 }
+    ],
+    travel: {
+        startAddress: "Rue de sendrogne 91 4141 Sprimont",
+        pricePerKm: 0.57
     }
 };
 
@@ -104,6 +159,7 @@ export const useAppStore = create<AppState>()(
             config: DEFAULT_CONFIG,
             clients: [],
             devisHistory: [],
+            offlineTasks: [],
 
             setConfig: (config) => set({ config }),
             updateConfig: (configPartial) => set((state) => ({
@@ -128,10 +184,37 @@ export const useAppStore = create<AppState>()(
             })),
             deleteDevis: (id) => set((state) => ({
                 devisHistory: state.devisHistory.filter(d => d.id !== id)
+            })),
+
+            setClients: (clients) => set({ clients }),
+
+            addOfflineTask: (task) => set((state) => ({
+                offlineTasks: [...state.offlineTasks, task]
+            })),
+            removeOfflineTask: (id) => set((state) => ({
+                offlineTasks: state.offlineTasks.filter(t => t.id !== id)
+            })),
+            updateOfflineTask: (id, updates) => set((state) => ({
+                offlineTasks: state.offlineTasks.map(t => t.id === id ? { ...t, ...updates } : t)
             }))
         }),
         {
             name: 'prodevis-storage',
+            merge: (persistedState: any, currentState: AppState) => {
+                const p = persistedState as AppState;
+                if (!p || !p.config) return { ...currentState, ...p };
+
+                return {
+                    ...currentState,
+                    ...p,
+                    config: {
+                        ...currentState.config,
+                        ...p.config,
+                        windowTypes: p.config.windowTypes || currentState.config.windowTypes,
+                        travel: p.config.travel || currentState.config.travel,
+                    }
+                };
+            }
         }
     )
 );

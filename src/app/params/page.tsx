@@ -3,21 +3,22 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { LABELS, WindowType, Size, Height, Dirtiness } from '@/lib/types';
-import { Settings, Save, Building2, FileText, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, Building2, FileText, CheckCircle2, Cloud, Mail, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function ParamsPage() {
     const { config, updateConfig } = useAppStore();
     const [localConfig, setLocalConfig] = useState(config);
     const [saved, setSaved] = useState(false);
-    const [mounted, setMounted] = useState(false);
+    const [isClient, setIsClient] = useState(false); // Renamed from mounted to isClient for clarity with the new check
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     useEffect(() => {
         setLocalConfig(config);
-        setMounted(true);
+        setIsClient(true); // Indicate that the component has mounted on the client side
     }, [config]);
 
-    if (!mounted) return null;
+    if (!isClient) return <div className="p-8 text-center text-slate-500">Chargement...</div>;
 
     const handleSave = () => {
         updateConfig(localConfig);
@@ -25,10 +26,31 @@ export default function ParamsPage() {
         setTimeout(() => setSaved(false), 2000);
     };
 
-    const handlePriceChange = (type: WindowType, value: number) => {
+    const handleResetApp = () => {
+        if (window.confirm("Êtes-vous sûr de vouloir tout réinitialiser ? Toutes les données (devis, clients, paramètres) seront perdues.")) {
+            localStorage.clear(); // Clear all local storage
+            window.location.href = '/'; // Reload the app
+        }
+    };
+
+    const handleAddWindowType = () => {
         setLocalConfig(prev => ({
             ...prev,
-            prices: { ...prev.prices, [type]: value }
+            windowTypes: [...(prev.windowTypes || []), { id: `type-${Date.now()}`, name: 'Nouvelle prestation', price: 0 }]
+        }));
+    };
+
+    const handleUpdateWindowType = (id: string, key: 'name' | 'price', value: string | number) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            windowTypes: prev.windowTypes?.map(w => w.id === id ? { ...w, [key]: value } : w) || []
+        }));
+    };
+
+    const handleRemoveWindowType = (id: string) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            windowTypes: prev.windowTypes?.filter(w => w.id !== id) || []
         }));
     };
 
@@ -111,22 +133,145 @@ export default function ParamsPage() {
                     </div>
                 </section>
 
-                {/* PRIX DE BASE */}
+                {/* HUBSPOT */}
                 <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">Prix de base (€)</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                        {(Object.keys(LABELS.types) as WindowType[]).map(type => (
-                            <div key={type}>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">{LABELS.types[type]}</label>
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <Cloud className="h-5 w-5 text-orange-500" />
+                        Intégration HubSpot
+                    </h2>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Jeton d'application privée (Token)</label>
+                            <input
+                                type="password"
+                                value={localConfig.hubspot?.token || ''}
+                                onChange={(e) => setLocalConfig(prev => ({
+                                    ...prev,
+                                    hubspot: { ...prev.hubspot, token: e.target.value }
+                                }))}
+                                className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
+                                placeholder="pat-na1-..."
+                            />
+                            <p className="text-xs text-slate-500 mt-2">
+                                Nécessaire pour synchroniser les contacts, les devis et les fichiers.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* EMAIL */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <Mail className="h-5 w-5 text-indigo-500" />
+                        Envoi d'Emails (Gmail Pro)
+                    </h2>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Mon adresse Email</label>
+                            <input
+                                type="email"
+                                value={localConfig.email?.address || ''}
+                                onChange={(e) => setLocalConfig(prev => ({
+                                    ...prev,
+                                    email: { ...prev.email, address: e.target.value }
+                                }))}
+                                className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="contact@washupcorp.com"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Mot de passe d'application (Gmail)</label>
+                            <input
+                                type="password"
+                                value={localConfig.email?.password || ''}
+                                onChange={(e) => setLocalConfig(prev => ({
+                                    ...prev,
+                                    email: { ...prev.email, password: e.target.value }
+                                }))}
+                                className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="abcd efgh ijkl mnop"
+                            />
+                            <p className="text-xs text-slate-500 mt-2">
+                                Ce mot de passe est nécessaire pour envoyer directement les devis par email depuis l'application en arrière-plan.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* PRESTATIONS (CARTES) */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">Prestations (Cartes)</h2>
+                    <div className="space-y-3">
+                        {localConfig.windowTypes?.map(wt => (
+                            <div key={wt.id} className="flex items-center gap-3">
+                                <input
+                                    type="text"
+                                    value={wt.name}
+                                    onChange={(e) => handleUpdateWindowType(wt.id, 'name', e.target.value)}
+                                    className="flex-1 rounded border-slate-300 border p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
                                 <input
                                     type="number"
                                     step="0.5"
-                                    value={localConfig.prices[type]}
-                                    onChange={(e) => handlePriceChange(type, parseFloat(e.target.value) || 0)}
-                                    className="w-full rounded-lg border-slate-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                    value={wt.price}
+                                    onChange={(e) => handleUpdateWindowType(wt.id, 'price', parseFloat(e.target.value) || 0)}
+                                    className="w-24 rounded border-slate-300 border p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                 />
+                                <span className="text-slate-500">€</span>
+                                <button
+                                    onClick={() => handleRemoveWindowType(wt.id)}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
                             </div>
                         ))}
+                        <Button variant="outline" size="sm" onClick={handleAddWindowType} className="mt-2 w-full text-blue-600 border-blue-200 hover:bg-blue-50">
+                            + Ajouter une prestation
+                        </Button>
+                        {(!localConfig.windowTypes || localConfig.windowTypes.length === 0) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    import('@/lib/store').then(m => {
+                                        setLocalConfig(prev => ({
+                                            ...prev,
+                                            windowTypes: m.DEFAULT_CONFIG.windowTypes
+                                        }));
+                                    });
+                                }}
+                                className="mt-2 w-full text-green-600 border-green-200 hover:bg-green-50"
+                            >
+                                Restaurer les cartes par défaut
+                            </Button>
+                        )}
+                    </div>
+                </section>
+
+                {/* TRAJET */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">Frais de déplacement</h2>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Adresse de départ par défaut</label>
+                            <input
+                                type="text"
+                                value={localConfig.travel?.startAddress || ''}
+                                onChange={(e) => setLocalConfig({ ...localConfig, travel: { ...localConfig.travel, startAddress: e.target.value } })}
+                                className="w-full rounded-lg border-slate-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Prix par km (€)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={localConfig.travel?.pricePerKm || 0}
+                                onChange={(e) => setLocalConfig({ ...localConfig, travel: { ...localConfig.travel, pricePerKm: parseFloat(e.target.value) || 0 } })}
+                                className="w-full rounded-lg border-slate-300 border p-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                            />
+                        </div>
                     </div>
                 </section>
 
@@ -197,6 +342,17 @@ export default function ParamsPage() {
                 </div>
 
             </main>
+
+            <div className="max-w-3xl mx-auto px-4 pb-12 mt-8 border-t border-slate-200 pt-8">
+                <Button
+                    variant="outline"
+                    onClick={handleResetApp}
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50 py-6 font-bold"
+                >
+                    <Trash2 className="mr-2 h-5 w-5" /> Réinitialiser l'application
+                </Button>
+                <p className="text-center text-xs text-slate-400 mt-2">Efface toutes les données de votre appareil.</p>
+            </div>
         </div>
     );
 }
