@@ -98,36 +98,72 @@ export function buildDevisPDFDoc(
     yPos += 8;
 
     // Group items by type for PDF
-    const grouped = devis.items.reduce((acc, item) => {
-        let typeName = '';
-        if (item.isFraisDeplacement) {
-            typeName = item.description || 'Déplacement';
-        } else if (item.type === 'autre') {
-            typeName = item.description || 'Autre prestation';
-        } else {
-            typeName = config.windowTypes?.find(w => w.id === item.type)?.name || item.type;
-        }
+    const rows: { name: string, quantity: number, total: number, isTravel?: boolean }[] = [];
 
-        if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0, isTravel: item.isFraisDeplacement };
-        acc[typeName].quantity += item.quantity;
-        acc[typeName].total += calculateWindowPrice(item, config);
-        return acc;
-    }, {} as Record<string, { quantity: number, total: number, isTravel?: boolean }>);
+    // Normal windows & other standard stuff
+    const normalItems = devis.items.filter(i => !i.isFraisDeplacement);
+    if (devis.globalDesignation) {
+        // Aggregate all normal windows into a single global designation row
+        const total = normalItems.reduce((acc, item) => acc + calculateWindowPrice(item, config), 0);
+        if (total > 0) {
+            rows.push({
+                name: devis.globalDesignation,
+                quantity: 1, // Global qty doesn't really matter, it's just a forfait
+                total: total,
+                isTravel: false
+            });
+        }
+    } else {
+        const grouped = normalItems.reduce((acc, item) => {
+            const typeName = item.type === 'autre' ? (item.description || 'Autre prestation') : (config.windowTypes?.find(w => w.id === item.type)?.name || item.type);
+            if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
+            acc[typeName].quantity += item.quantity;
+            acc[typeName].total += calculateWindowPrice(item, config);
+            return acc;
+        }, {} as Record<string, { quantity: number, total: number }>);
+
+        Object.entries(grouped).forEach(([name, data]) => {
+            rows.push({ name, quantity: data.quantity, total: data.total, isTravel: false });
+        });
+    }
+
+    // Insert Extra Task if defined
+    if (devis.extraTaskDescription && devis.extraTaskPrice) {
+        rows.push({
+            name: devis.extraTaskDescription,
+            quantity: 1,
+            total: devis.extraTaskPrice,
+            isTravel: false
+        });
+    }
+
+    // Insert Travel costs
+    const travelItems = devis.items.filter(i => i.isFraisDeplacement);
+    travelItems.forEach(item => {
+        rows.push({
+            name: item.description || 'Déplacement',
+            quantity: item.quantity,
+            total: calculateWindowPrice(item, config),
+            isTravel: true
+        });
+    });
 
     doc.setFont("helvetica", "normal");
-    Object.entries(grouped).forEach(([name, data]) => {
-        const splitName = doc.splitTextToSize(name, 90);
+    rows.forEach(data => {
+        const splitName = doc.splitTextToSize(data.name, 90);
 
         let unitPrice = data.total / (data.quantity || 1);
         let displayQuantity = data.quantity.toString();
+
+        // Show empty if quantity 1 and forfait
+        if (devis.globalDesignation && data.name === devis.globalDesignation) {
+            displayQuantity = "1";
+        }
+
         let displayUnitPrice = unitPrice.toFixed(2) + " €";
 
         if (data.isTravel && config.travel?.pricePerKm) {
-            // For travel, show the per KM price and qty = total KM.
             displayUnitPrice = config.travel.pricePerKm.toFixed(2) + " €";
-            // If the total was directly derived from travelPricePerKm * qty, qty should match km
-            // we don't need to recalculate displayQuantity here, it's just `data.quantity` (km * 2).
-            // However, if manual overrides happened, the unit price will be total/km.
         }
 
         doc.text(splitName, 15, yPos);

@@ -48,6 +48,11 @@ export default function NouveauDevisPage() {
   const [windows, setWindows] = useState<WindowItem[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
+
+  const [globalDesignation, setGlobalDesignation] = useState<string>('');
+  const [extraTaskDescription, setExtraTaskDescription] = useState<string>('');
+  const [extraTaskPrice, setExtraTaskPrice] = useState<string>('');
+
   const [showEmailModal, setShowEmailModal] = useState<DevisData | null>(null);
   const signaturePadRef = useRef<SignaturePadRef>(null);
 
@@ -166,8 +171,10 @@ export default function NouveauDevisPage() {
   };
 
   const subTotal = useMemo(() => {
-    return windows.reduce((acc, current) => acc + calculateWindowPrice(current, config), 0);
-  }, [windows, config]);
+    const windowsTotal = windows.reduce((acc, current) => acc + calculateWindowPrice(current, config), 0);
+    const extraPrice = parseFloat(extraTaskPrice) || 0;
+    return windowsTotal + extraPrice;
+  }, [windows, config, extraTaskPrice]);
 
   const discountAmount = useMemo(() => {
     return subTotal * (discount / 100);
@@ -197,7 +204,10 @@ export default function NouveauDevisPage() {
       notes,
       signature: currentSignature || undefined,
       photos: [],
-      needsSync: true
+      needsSync: true,
+      globalDesignation: globalDesignation.trim() || undefined,
+      extraTaskDescription: extraTaskDescription.trim() || undefined,
+      extraTaskPrice: parseFloat(extraTaskPrice) || undefined
     };
     addDevis(newDevis);
 
@@ -488,17 +498,57 @@ export default function NouveauDevisPage() {
         {/* TOTALS */}
         <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
           <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
-            <Settings2 className="h-5 w-5 text-blue-600" /> Options de fin
+            <Settings2 className="h-5 w-5 text-blue-600" /> Personnalisation de l'affichage PDF
           </h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-600">Remise globale (%)</label>
-              <input type="number" min="0" max="100" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none" />
+              <label className="text-sm font-medium text-slate-600 block">Désignation globale pour toutes les vitres</label>
+              <p className="text-xs text-slate-400 mb-2">Au lieu de détailler chaque encart, ce texte condensera l'ensemble de vos fenêtres en une seule ligne de facturation.</p>
+              <input
+                type="text"
+                placeholder="Ex: Nettoyage intérieur et extérieur de vos vitres"
+                value={globalDesignation}
+                onChange={(e) => setGlobalDesignation(e.target.value)}
+                className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none"
+              />
             </div>
-            <div className="space-y-1 col-span-2">
-              <label className="text-sm font-medium text-slate-600">Précisions devis (Affiche dans PDF client)</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-lg border-slate-300 border p-2.5 text-sm h-16 resize-none outline-none" />
+
+            <div className="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-sm font-medium text-slate-600">Prestation Supplémentaire (Optionnel)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Nettoyage structure métallique"
+                  value={extraTaskDescription}
+                  onChange={(e) => setExtraTaskDescription(e.target.value)}
+                  className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-600">Prix unitaire (HTVA)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={extraTaskPrice}
+                    onChange={(e) => setExtraTaskPrice(e.target.value)}
+                    className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">€</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-600">Remise globale (%)</label>
+                <input type="number" min="0" max="100" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none" />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-sm font-medium text-slate-600">Notes & Précisions (Affiche dans PDF client)</label>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full rounded-lg border-slate-300 border p-2.5 text-sm h-16 resize-none outline-none" />
+              </div>
             </div>
           </div>
 
