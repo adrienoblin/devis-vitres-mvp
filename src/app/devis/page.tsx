@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
-import { generateDevisPDF } from '@/lib/pdf';
+import { buildDevisPDFDoc, generateDevisPDF } from '@/lib/pdf';
 import { EmailModal } from '@/components/EmailModal';
 import {
   Plus,
@@ -23,6 +23,7 @@ import {
 import { useRouter } from 'next/navigation';
 import SignaturePad, { SignaturePadRef } from '@/components/SignaturePad';
 import { processOfflineTasks } from '@/lib/hubspot';
+
 
 import {
   WindowItem,
@@ -155,9 +156,9 @@ export default function NouveauDevisPage() {
       id: uuidv4(),
       type: 'autre',
       size: 'moyenne', height: 'homme', dirtiness: 'legere',
-      quantity: 1,
-      description: `Frais de déplacement - de ${travelStart} à ${travelEnd} (${(travelCalculatedKm * 2).toFixed(1)}km A/R)`,
-      prixManuel: travelCalculatedKm * 2 * travelPricePerKm,
+      quantity: Math.ceil(travelCalculatedKm * 2),
+      description: `Déplacement`,
+      prixManuel: travelPricePerKm,
       isFraisDeplacement: true
     }]);
     setShowTravelCalc(false);
@@ -200,144 +201,12 @@ export default function NouveauDevisPage() {
     };
     addDevis(newDevis);
 
-    const doc = jsPDF ? new jsPDF() : null;
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const doc = buildDevisPDFDoc(newDevis, selectedClient || undefined, config);
     if (!doc) return;
 
-    // Header
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 64, 175);
-    doc.text(config.enterprise.nom || 'Devis Nettoyage', 14, 25);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Date : ${format(new Date(), 'dd/MM/yyyy')}`, 14, 35);
-    doc.text(`Devis #DEV-${Math.floor(Math.random() * 10000)}`, 14, 41);
-
-    const selectedClient = clients.find(c => c.id === selectedClientId);
-    if (selectedClient) {
-      doc.setFontSize(12);
-      doc.setTextColor(0, 0, 0);
-      doc.text("Client :", 120, 25);
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text(selectedClient.name, 120, 31);
-      doc.setFont("helvetica", "normal");
-      if (selectedClient.address) doc.text(selectedClient.address, 120, 37);
-      if (selectedClient.phone) doc.text(selectedClient.phone, 120, 43);
-    }
-
-    let yPos = 65;
-
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text('NETTOYAGE COMPLET VITRERIE', 14, yPos);
-    yPos += 15;
-
-    if (selectedClient?.address) {
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text(`📍 Intervention : ${selectedClient.address}`, 14, yPos);
-      yPos += 15;
-    }
-
-    // Group items by type for PDF
-    const grouped = newDevis.items.reduce((acc, item) => {
-      let typeName = '';
-      if (item.isFraisDeplacement) {
-        typeName = item.description || 'Frais de déplacement';
-      } else if (item.type === 'autre') {
-        typeName = item.description || 'Autre prestation';
-      } else {
-        typeName = config.windowTypes?.find(w => w.id === item.type)?.name || item.type;
-      }
-
-      if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
-      acc[typeName].quantity += item.quantity;
-      acc[typeName].total += calculateWindowPrice(item, config);
-      return acc;
-    }, {} as Record<string, { quantity: number, total: number }>);
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(50, 50, 50);
-    doc.text('Désignation', 14, yPos);
-    doc.text('Qté', 140, yPos);
-    doc.text('Total HT', 170, yPos);
-    yPos += 8;
-
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    Object.entries(grouped).forEach(([name, data]) => {
-      const splitName = doc.splitTextToSize(name, 110);
-      doc.text(splitName, 14, yPos);
-      doc.text(data.quantity.toString(), 140, yPos);
-      doc.text(`${data.total.toFixed(2)} €`, 170, yPos);
-      yPos += 8 * splitName.length;
-    });
-
-    yPos += 10;
-    doc.setFillColor(241, 245, 249);
-    doc.rect(14, yPos, 182, 20, 'F');
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(`TOTAL FORFAITAIRE : ${totalHT.toFixed(2)} € HTVA`, 20, yPos + 14);
-    yPos += 35;
-
-    if (notes) {
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text('Notes / Précisions :', 14, yPos);
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(80, 80, 80);
-      const splitNotes = doc.splitTextToSize(notes, 180);
-      doc.text(splitNotes, 14, yPos + 8);
-      yPos += 15 + (splitNotes.length * 5);
-      doc.setTextColor(0, 0, 0);
-    }
-
-    // MULTI-PAGE CGV SUPPORT
-    if (config.cgv) {
-      yPos += 10;
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      const splitCgv = doc.splitTextToSize(config.cgv, 180);
-
-      let linesDrawn = 0;
-      while (linesDrawn < splitCgv.length) {
-        if (yPos > 270) {
-          doc.addPage();
-          yPos = 20;
-        }
-        const spaceRemaining = 280 - yPos;
-        const linesFit = Math.floor(spaceRemaining / 4);
-        const textChunk = splitCgv.slice(linesDrawn, linesDrawn + linesFit);
-        doc.text(textChunk, 14, yPos);
-        yPos += textChunk.length * 4;
-        linesDrawn += textChunk.length;
-      }
-      doc.setTextColor(0, 0, 0);
-    }
-
-    if (yPos > 240) {
-      doc.addPage();
-      yPos = 20;
-    }
-
-    yPos += 20;
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text('Bon pour accord (Signature) :', 14, yPos);
-
-    if (currentSignature) {
-      doc.addImage(currentSignature, 'PNG', 14, yPos + 5, 80, 40);
-    }
-
     const pdfBase64 = doc.output('datauristring');
-    doc.save(`devis-${format(new Date(), 'yyyyMMdd')}.pdf`);
+    doc.save(`devis-${format(new Date(), 'yyyyMMdd')}-${newDevis.id.substring(0, 4)}.pdf`);
 
     if (config.hubspot.token && selectedClientId) {
       useAppStore.getState().addOfflineTask({
