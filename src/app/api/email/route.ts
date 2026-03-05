@@ -10,11 +10,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        const safeEmail = credentials.address.trim().toLowerCase();
+        const safePassword = credentials.password.replace(/\s+/g, '');
+
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: credentials.address,
-                pass: credentials.password,
+                user: safeEmail,
+                pass: safePassword,
             },
         });
 
@@ -23,7 +26,7 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(base64Data, 'base64');
 
         const mailOptions = {
-            from: credentials.address,
+            from: safeEmail,
             to: to,
             subject: subject,
             text: text,
