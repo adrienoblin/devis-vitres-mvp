@@ -281,14 +281,20 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
         });
     }
 
-    if (devis.extraTaskDescription && devis.extraTaskPrice) {
+    // Handle multiple extra tasks and old devis format fallback
+    const allExtraTasks = devis.extraTasks ? [...devis.extraTasks] : [];
+    if (devis.extraTaskDescription && devis.extraTaskPrice && allExtraTasks.length === 0) {
+        allExtraTasks.push({ id: 'legacy', description: devis.extraTaskDescription, price: devis.extraTaskPrice });
+    }
+
+    allExtraTasks.forEach(task => {
         rows.push({
-            name: devis.extraTaskDescription,
+            name: task.description,
             quantity: 1,
-            total: devis.extraTaskPrice,
+            total: task.price,
             isTravel: false
         });
-    }
+    });
 
     const travelItems = devis.items.filter(i => i.isFraisDeplacement);
     travelItems.forEach(item => {

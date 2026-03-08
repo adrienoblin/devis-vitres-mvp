@@ -51,8 +51,7 @@ export default function NouveauDevisPage() {
 
   const [globalDesignation, setGlobalDesignation] = useState<string>('');
   const [isCustomDesignation, setIsCustomDesignation] = useState<boolean>(false);
-  const [extraTaskDescription, setExtraTaskDescription] = useState<string>('');
-  const [extraTaskPrice, setExtraTaskPrice] = useState<string>('');
+  const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, price: string }[]>([]);
 
   const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
   const signaturePadRef = useRef<SignaturePadRef>(null);
@@ -76,8 +75,11 @@ export default function NouveauDevisPage() {
           setNotes(devisToEdit.notes || '');
           const existingGlobal = devisToEdit.globalDesignation || '';
           setGlobalDesignation(existingGlobal);
-          setExtraTaskDescription(devisToEdit.extraTaskDescription || '');
-          setExtraTaskPrice(devisToEdit.extraTaskPrice ? devisToEdit.extraTaskPrice.toString() : '');
+          const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
+          if (devisToEdit.extraTaskDescription) {
+            loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
+          }
+          setExtraTasks(loadedExtraTasks);
 
           if (existingGlobal) {
             const { config: currentConfig } = useAppStore.getState();
@@ -133,9 +135,9 @@ export default function NouveauDevisPage() {
 
   const subTotal = useMemo(() => {
     const windowsTotal = windows.reduce((acc, current) => acc + calculateWindowPrice(current, config), 0);
-    const extraPrice = parseFloat(extraTaskPrice) || 0;
+    const extraPrice = extraTasks.reduce((acc, task) => acc + (parseFloat(task.price) || 0), 0);
     return windowsTotal + extraPrice;
-  }, [windows, config, extraTaskPrice]);
+  }, [windows, config, extraTasks]);
 
   const discountAmount = useMemo(() => {
     return subTotal * (discount / 100);
@@ -169,8 +171,7 @@ export default function NouveauDevisPage() {
         photos: [],
         needsSync: true,
         globalDesignation: globalDesignation.trim() || undefined,
-        extraTaskDescription: extraTaskDescription.trim() || undefined,
-        extraTaskPrice: parseFloat(extraTaskPrice) || undefined
+        extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), price: parseFloat(t.price) || 0 })),
       };
 
       if (existingDevisId) {
@@ -416,30 +417,39 @@ export default function NouveauDevisPage() {
               )}
             </div>
 
-            <div className="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-sm font-medium text-slate-600">Prestation Supplémentaire (Optionnel)</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Nettoyage structure métallique"
-                  value={extraTaskDescription}
-                  onChange={(e) => setExtraTaskDescription(e.target.value)}
-                  className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-600">Prix unitaire (HTVA)</label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    value={extraTaskPrice}
-                    onChange={(e) => setExtraTaskPrice(e.target.value)}
-                    className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none pr-8"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">€</span>
+            <div className="border-t border-slate-100 pt-4 space-y-4">
+              <h3 className="text-sm font-medium text-slate-600">Prestations Supplémentaires (Optionnel)</h3>
+              {extraTasks.map((task) => (
+                <div key={task.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 p-3 rounded-lg border border-slate-100 relative">
+                  <button onClick={() => setExtraTasks(prev => prev.filter(t => t.id !== task.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs text-slate-500">Description</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Nettoyage structure métallique"
+                      value={task.description}
+                      onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, description: e.target.value } : t))}
+                      className="w-full rounded border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-500">Prix unitaire (HT)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        value={task.price}
+                        onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, price: e.target.value } : t))}
+                        className="w-full rounded border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none pr-8 text-sm"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">€</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setExtraTasks(prev => [...prev, { id: uuidv4(), description: '', price: '' }])} className="w-full border-dashed text-blue-600 border-blue-200 hover:bg-blue-50 py-4 h-auto font-medium">
+                + Ajouter une prestation supplémentaire
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">

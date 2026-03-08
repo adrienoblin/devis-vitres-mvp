@@ -67,8 +67,9 @@ export interface DevisData {
     photos: { windowId: string; photoBase64: string }[];
     needsSync?: boolean; // if we need to upload this quote to hubspot
     globalDesignation?: string;
-    extraTaskDescription?: string;
-    extraTaskPrice?: number;
+    extraTaskDescription?: string; // deprecated
+    extraTaskPrice?: number; // deprecated
+    extraTasks?: { id: string; description: string; price: number }[];
 }
 
 export interface OfflineTask {
