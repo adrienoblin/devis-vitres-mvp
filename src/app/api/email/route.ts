@@ -6,12 +6,15 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { to, subject, text, pdfBase64, credentials } = body;
 
-        if (!to || !subject || !text || !pdfBase64 || !credentials?.address || !credentials?.password) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        const emailAddress = process.env.SMTP_EMAIL || credentials?.address;
+        const emailPassword = process.env.SMTP_PASSWORD || credentials?.password;
+
+        if (!to || !subject || !text || !pdfBase64 || !emailAddress || !emailPassword) {
+            return NextResponse.json({ error: 'Configurations d\'email manquantes.' }, { status: 400 });
         }
 
-        const safeEmail = credentials.address.trim().toLowerCase();
-        const safePassword = credentials.password.replace(/\s+/g, '');
+        const safeEmail = emailAddress.trim().toLowerCase();
+        const safePassword = emailPassword.replace(/\s+/g, '');
 
         const transporter = nodemailer.createTransport({
             service: 'gmail',

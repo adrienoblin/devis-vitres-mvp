@@ -199,19 +199,23 @@ export default function ParamsPage() {
                             </h2>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1">Jeton d'application privée (Token)</label>
-                                    <input
-                                        type="password"
-                                        value={localConfig.hubspot?.token || ''}
-                                        onChange={(e) => setLocalConfig(prev => ({
-                                            ...prev,
-                                            hubspot: { ...prev.hubspot, token: e.target.value }
-                                        }))}
-                                        className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-orange-500 outline-none"
-                                        placeholder="pat-na1-..."
-                                    />
-                                    <p className="text-xs text-slate-500 mt-2">
-                                        Nécessaire pour synchroniser les contacts, les devis et les fichiers.
+                                    <p className="text-sm text-slate-600 bg-orange-50 p-3 rounded-lg border border-orange-100 mb-4">
+                                        Pour des raisons de <strong>sécurité</strong>, le jeton (token) HubSpot n'est plus stocké dans le navigateur. Vous devez configurer la variable d'environnement <code className="bg-white px-1 py-0.5 rounded border border-orange-200 text-xs">HUBSPOT_TOKEN</code> côté serveur (ex: sur Vercel).
+                                    </p>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={localConfig.hubspot?.token === 'env_configured'}
+                                            onChange={(e) => setLocalConfig(prev => ({
+                                                ...prev,
+                                                hubspot: { ...prev.hubspot, token: e.target.checked ? 'env_configured' : '' }
+                                            }))}
+                                            className="w-5 h-5 text-orange-600 rounded border-slate-300 focus:ring-orange-500"
+                                        />
+                                        <span className="text-sm font-bold text-slate-700">Activer l'interface HubSpot.</span>
+                                    </label>
+                                    <p className="text-xs text-slate-500 mt-2 ml-8">
+                                        Cochez cette case une fois que vous avez configuré la variable d'environnement pour activer les boutons de synchronisation.
                                     </p>
                                 </div>
                             </div>
@@ -225,7 +229,7 @@ export default function ParamsPage() {
                             </h2>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1">Mon adresse Email</label>
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Mon adresse Email (Expéditeur)</label>
                                     <input
                                         type="email"
                                         value={localConfig.email?.address || ''}
@@ -233,25 +237,27 @@ export default function ParamsPage() {
                                             ...prev,
                                             email: { ...prev.email, address: e.target.value }
                                         }))}
-                                        className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none mb-4"
                                         placeholder="contact@washupcorp.com"
                                     />
                                 </div>
+
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1">Mot de passe d'application (Gmail)</label>
-                                    <input
-                                        type="password"
-                                        value={localConfig.email?.password || ''}
-                                        onChange={(e) => setLocalConfig(prev => ({
-                                            ...prev,
-                                            email: { ...prev.email, password: e.target.value }
-                                        }))}
-                                        className="w-full rounded-lg border-slate-300 border p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="abcd efgh ijkl mnop"
-                                    />
-                                    <p className="text-xs text-slate-500 mt-2">
-                                        Ce mot de passe est nécessaire pour envoyer directement les devis par email depuis l'application en arrière-plan.
+                                    <p className="text-sm text-slate-600 bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4">
+                                        Pour des raisons de <strong>sécurité</strong>, le mot de passe d'application Gmail n'est plus stocké dans le navigateur. Configurez les variables <code className="bg-white px-1 py-0.5 rounded border border-indigo-200 text-xs">SMTP_EMAIL</code> et <code className="bg-white px-1 py-0.5 rounded border border-indigo-200 text-xs">SMTP_PASSWORD</code> côté serveur.
                                     </p>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={localConfig.email?.password === 'env_configured'}
+                                            onChange={(e) => setLocalConfig(prev => ({
+                                                ...prev,
+                                                email: { ...prev.email, password: e.target.checked ? 'env_configured' : '' }
+                                            }))}
+                                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm font-bold text-slate-700">Activer le bouton "Envoyer par email"</span>
+                                    </label>
                                 </div>
                             </div>
                         </section>

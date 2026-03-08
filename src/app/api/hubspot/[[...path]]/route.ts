@@ -7,18 +7,20 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
     const pathSegments = resolvedParams.path || [];
     const path = pathSegments.join('/');
 
-    // Reconstruct the HubSpot API URL
     const targetUrl = `${API_BASE}/${path}${request.nextUrl.search}`;
+    let authHeader = request.headers.get('Authorization');
 
-    const authHeader = request.headers.get('Authorization');
+    if (process.env.HUBSPOT_TOKEN) {
+        authHeader = `Bearer ${process.env.HUBSPOT_TOKEN}`;
+    }
+
     if (!authHeader) {
-        return NextResponse.json({ error: 'No authorization header' }, { status: 401 });
+        return NextResponse.json({ error: 'No authorization header ou token dans .env' }, { status: 401 });
     }
 
     const headers = new Headers();
     headers.set('Authorization', authHeader);
 
-    // Copy the Content-Type header if present (important for FormData)
     const contentType = request.headers.get('Content-Type');
     if (contentType) {
         headers.set('Content-Type', contentType);

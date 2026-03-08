@@ -5,11 +5,20 @@ const API_BASE = '/api/hubspot';
 const getHeaders = () => {
     const state = useAppStore.getState();
     const token = state.config.hubspot.token;
-    if (!token) throw new Error("Token HubSpot manquant. Veuillez le configurer dans les paramètres.");
-    return {
-        'Authorization': `Bearer ${token}`,
+
+    // We send the token unless it's a dummy value from the updated UI,
+    // in which case the API route will use process.env.HUBSPOT_TOKEN.
+    const isEnvConfigured = token === 'env_configured';
+
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json'
     };
+
+    if (token && !isEnvConfigured) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
 };
 
 export const hubspotApi = {
