@@ -249,6 +249,52 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     const tva = totalHT * 0.21;
     const totalTTC = totalHT + tva;
 
+    const rows: { name: string, quantity: number, total: number, isTravel?: boolean }[] = [];
+    const normalItems = devis.items.filter(i => !i.isFraisDeplacement);
+
+    if (devis.globalDesignation) {
+        const globalTotal = normalItems.reduce((acc, item) => acc + calculateWindowPrice(item, config), 0);
+        if (globalTotal > 0) {
+            rows.push({
+                name: devis.globalDesignation,
+                quantity: 1,
+                total: globalTotal,
+                isTravel: false
+            });
+        }
+    } else {
+        const grouped = normalItems.reduce((acc, item) => {
+            const typeName = item.type === 'autre' ? (item.description || 'Autre prestation') : (config.windowTypes?.find(w => w.id === item.type)?.name || item.type);
+            if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
+            acc[typeName].quantity += (item.quantity || 1);
+            acc[typeName].total += calculateWindowPrice(item, config);
+            return acc;
+        }, {} as Record<string, { quantity: number, total: number }>);
+
+        Object.entries(grouped).forEach(([name, data]) => {
+            rows.push({ name, quantity: data.quantity, total: data.total, isTravel: false });
+        });
+    }
+
+    if (devis.extraTaskDescription && devis.extraTaskPrice) {
+        rows.push({
+            name: devis.extraTaskDescription,
+            quantity: 1,
+            total: devis.extraTaskPrice,
+            isTravel: false
+        });
+    }
+
+    const travelItems = devis.items.filter(i => i.isFraisDeplacement);
+    travelItems.forEach(item => {
+        rows.push({
+            name: item.description || 'Frais de déplacement',
+            quantity: item.quantity || 1,
+            total: calculateWindowPrice(item, config),
+            isTravel: true
+        });
+    });
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
@@ -301,28 +347,32 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                         <Text style={styles.thTotal}>Total (HT)</Text>
                     </View>
 
-                    {devis.items.map((w, index) => {
-                        const wt = config.windowTypes?.find(type => type.id === w.type);
-                        const isFrais = w.isFraisDeplacement || w.type === 'autre';
-                        const wTotal = calculateWindowPrice(w, config);
-                        const qty = w.quantity || 1;
-                        const pU = wTotal / qty;
+                    {rows.map((row, index) => {
+                        const qty = row.quantity || 1;
+                        let pU = row.total / qty;
+
+                        // Display quantity handling: if globalDesignation is used for the row, keep 1.
+                        let displayQuantity = qty.toString();
+                        if (devis.globalDesignation && row.name === devis.globalDesignation) {
+                            displayQuantity = "1";
+                            pU = row.total;
+                        }
+
+                        let displayUnitPrice = pU.toFixed(2) + " €";
+                        if (row.isTravel && config.travel?.pricePerKm) {
+                            displayUnitPrice = config.travel.pricePerKm.toFixed(2) + " €";
+                        }
 
                         return (
-                            <View style={styles.tableRow} key={w.id || index}>
+                            <View style={styles.tableRow} key={`row-${index}`}>
                                 <View style={styles.tdDescriptionBox}>
                                     <Text style={styles.tdDescriptionTitle}>
-                                        {w.description || (isFrais ? 'Frais de déplacement' : (wt?.name || w.type))}
+                                        {row.name}
                                     </Text>
-                                    {!isFrais && (
-                                        <Text style={styles.tdDescriptionSub}>
-                                            Taille: {w.size} - Hauteur: {w.height} - Saleté: {w.dirtiness}
-                                        </Text>
-                                    )}
                                 </View>
-                                <Text style={styles.tdQty}>{qty}</Text>
-                                <Text style={styles.tdPriceUnit}>{pU.toFixed(2)} €</Text>
-                                <Text style={styles.tdTotal}>{wTotal.toFixed(2)} €</Text>
+                                <Text style={styles.tdQty}>{displayQuantity}</Text>
+                                <Text style={styles.tdPriceUnit}>{displayUnitPrice}</Text>
+                                <Text style={styles.tdTotal}>{row.total.toFixed(2)} €</Text>
                             </View>
                         );
                     })}
