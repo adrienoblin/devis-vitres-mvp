@@ -40,7 +40,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function NouveauDevisPage() {
   const router = useRouter();
-  const { config, clients, addDevis, devisHistory, updateDevis } = useAppStore();
+  const { config, clients, addDevis, devisHistory, updateDevis, currentDraft, updateCurrentDraft, clearCurrentDraft } = useAppStore();
   const [existingDevisId, setExistingDevisId] = useState<string | null>(null);
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
@@ -87,9 +87,43 @@ export default function NouveauDevisPage() {
             if (!isMatch) setIsCustomDesignation(true);
           }
         }
+      } else {
+        // Resume from draft if it exists
+        const draft = useAppStore.getState().currentDraft;
+        if (draft) {
+          if (draft.clientId) setSelectedClientId(draft.clientId);
+          if (draft.items) setWindows(draft.items);
+          if (draft.discount !== undefined) setDiscount(draft.discount);
+          if (draft.notes) setNotes(draft.notes);
+          if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
+          if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString() })));
+        }
       }
     }
   }, []);
+
+  // Auto-save effect
+  useEffect(() => {
+    // We only auto-save if we are NOT editing an explicitly saved finalized quote.
+    // If we want to auto-save edits too, we can, but it might overwrite the original edit before saving.
+    // Let's only auto-save new devis creations for now to be safe, or we can save state indiscriminately since draft is separate.
+    if (!existingDevisId) {
+      const timer = setTimeout(() => {
+        // Only save if there's actually something entered to avoid blank drafts overriding history
+        if (windows.length > 0 || selectedClientId || notes || extraTasks.length > 0) {
+          updateCurrentDraft({
+            clientId: selectedClientId || undefined,
+            items: windows,
+            discount,
+            notes,
+            globalDesignation: globalDesignation.trim() || undefined,
+            extraTasks: extraTasks.filter(t => t.description.trim() !== '').map(t => ({ id: t.id, description: t.description.trim(), price: parseFloat(t.price) || 0 })),
+          });
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [windows, selectedClientId, discount, notes, globalDesignation, extraTasks, existingDevisId, updateCurrentDraft]);
 
   const [showAddMenu, setShowAddMenu] = useState(false);
 
@@ -178,6 +212,7 @@ export default function NouveauDevisPage() {
         updateDevis(existingDevisId, newDevis);
       } else {
         addDevis(newDevis);
+        clearCurrentDraft(); // Clear draft on successful creation
       }
 
       const selectedClient = clients.find(c => c.id === selectedClientId);

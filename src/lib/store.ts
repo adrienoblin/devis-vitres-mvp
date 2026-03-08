@@ -85,6 +85,7 @@ interface AppState {
     clients: ClientData[];
     devisHistory: DevisData[];
     offlineTasks: OfflineTask[];
+    currentDraft?: Partial<DevisData> | null;
 
     setConfig: (config: PricingConfig) => void;
     updateConfig: (configPartial: Partial<PricingConfig>) => void;
@@ -101,6 +102,9 @@ interface AppState {
     addOfflineTask: (task: OfflineTask) => void;
     removeOfflineTask: (id: string) => void;
     updateOfflineTask: (id: string, updates: Partial<OfflineTask>) => void;
+
+    updateCurrentDraft: (draft: Partial<DevisData> | null) => void;
+    clearCurrentDraft: () => void;
 }
 
 export const DEFAULT_CONFIG: PricingConfig = {
@@ -174,6 +178,7 @@ export const useAppStore = create<AppState>()(
             clients: [],
             devisHistory: [],
             offlineTasks: [],
+            currentDraft: null,
 
             setConfig: (config) => set({ config }),
             updateConfig: (configPartial) => set((state) => ({
@@ -210,10 +215,13 @@ export const useAppStore = create<AppState>()(
             })),
             updateOfflineTask: (id, updates) => set((state) => ({
                 offlineTasks: state.offlineTasks.map(t => t.id === id ? { ...t, ...updates } : t)
-            }))
+            })),
+            updateCurrentDraft: (draft) => set({ currentDraft: draft }),
+            clearCurrentDraft: () => set({ currentDraft: null }),
         }),
         {
-            name: 'prodevis-storage',
+            name: 'devis-storage',
+            version: 1, // You can increment this if you have breaking changes to the state shape
             merge: (persistedState: any, currentState: AppState) => {
                 const p = persistedState as AppState;
                 if (!p || !p.config) return { ...currentState, ...p };
