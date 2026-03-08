@@ -11,7 +11,8 @@ async function handler(request: NextRequest, { params }: { params: Promise<{ pat
     let authHeader = request.headers.get('Authorization');
 
     if (process.env.HUBSPOT_TOKEN) {
-        authHeader = `Bearer ${process.env.HUBSPOT_TOKEN}`;
+        const cleanToken = process.env.HUBSPOT_TOKEN.replace(/['"]/g, '');
+        authHeader = `Bearer ${cleanToken}`;
     }
 
     if (!authHeader) {
