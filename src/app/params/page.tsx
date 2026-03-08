@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { LABELS, WindowType, Size, Height, Dirtiness } from '@/lib/types';
 import { Settings, Save, Building2, FileText, CheckCircle2, Cloud, Mail, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { removeWhiteBackground } from '@/lib/imageUtils';
 
 export default function ParamsPage() {
     const { config, updateConfig } = useAppStore();
@@ -174,12 +175,27 @@ export default function ParamsPage() {
                                             />
                                         </label>
                                         {localConfig.enterprise.logo && (
-                                            <button
-                                                onClick={() => setLocalConfig(prev => ({ ...prev, enterprise: { ...prev.enterprise, logo: '' } }))}
-                                                className="text-xs text-red-500 hover:text-red-700 font-medium"
-                                            >
-                                                Effacer
-                                            </button>
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const newBase64 = await removeWhiteBackground(localConfig.enterprise.logo!, 240);
+                                                            setLocalConfig(prev => ({ ...prev, enterprise: { ...prev.enterprise, logo: newBase64 } }));
+                                                        } catch (e) {
+                                                            console.error("Failed to make background transparent", e);
+                                                        }
+                                                    }}
+                                                    className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md font-medium transition-colors"
+                                                >
+                                                    Enlever le fond blanc
+                                                </button>
+                                                <button
+                                                    onClick={() => setLocalConfig(prev => ({ ...prev, enterprise: { ...prev.enterprise, logo: '' } }))}
+                                                    className="text-xs text-red-500 hover:text-red-700 font-medium self-start"
+                                                >
+                                                    Effacer le logo
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
