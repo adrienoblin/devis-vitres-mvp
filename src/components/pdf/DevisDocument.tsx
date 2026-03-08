@@ -36,7 +36,11 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start'
     },
     companyBox: {
-        width: '45%',
+        width: '33%',
+    },
+    logoCentered: {
+        width: '33%',
+        alignItems: 'center',
     },
     logoBox: {
         width: 40,
@@ -66,7 +70,7 @@ const styles = StyleSheet.create({
         lineHeight: 1.4,
     },
     clientBox: {
-        width: '45%',
+        width: '33%',
         alignItems: 'flex-end',
         textAlign: 'right',
     },
@@ -199,7 +203,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         paddingHorizontal: 40,
-        marginTop: 40,
+        marginTop: 150, // Space to clear the header on the new page
         marginBottom: 20
     },
     signatureBox: {
@@ -262,13 +266,16 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                 {/* Header Content */}
                 <View style={styles.headerContent} fixed>
                     <View style={styles.companyBox}>
-                        <View style={styles.logoBox}>
-                            <Text style={styles.logoText}>W—</Text>
-                        </View>
                         <Text style={styles.companyName}>{config.enterprise.nom || "WASH UP CORP"}</Text>
                         <Text style={styles.companyDetails}>Chaussée de la seigneurie 60a</Text>
                         <Text style={styles.companyDetails}>4800 Petit Rechain, Belgique</Text>
                         <Text style={styles.companyDetails}>TVA: BE0688635662</Text>
+                    </View>
+
+                    <View style={styles.logoCentered}>
+                        <View style={styles.logoBox}>
+                            <Text style={styles.logoText}>W—</Text>
+                        </View>
                     </View>
 
                     <View style={styles.clientBox}>
@@ -351,7 +358,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                 </View>
 
                 {/* Notes and Signature */}
-                <View style={styles.signatureSection}>
+                <View style={styles.signatureSection} break>
                     <View style={{ flex: 1, paddingRight: 40 }}>
                         {devis.notes && (
                             <View style={{ marginBottom: 15 }}>
