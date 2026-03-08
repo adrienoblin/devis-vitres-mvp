@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore, ClientData, DevisData } from '@/lib/store';
-import { Users, Plus, Edit2, Trash2, ChevronLeft, MapPin, Phone, Mail, FileText, Camera, MailCheck, X } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, ChevronLeft, MapPin, Phone, Mail, FileText, Camera, MailCheck, X, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { EmailModal } from '@/components/EmailModal';
 import { format } from 'date-fns';
@@ -275,12 +275,20 @@ export default function ClientsPage() {
                                                     {devis.statut === 'accepte' ? 'Accepté' : devis.statut === 'refuse' ? 'Refusé' : 'En attente'}
                                                 </span>
                                             </div>
-                                            <button
-                                                onClick={() => setShowModal(devis)}
-                                                className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm"
-                                            >
-                                                👁️ Résumé
-                                            </button>
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => setShowModal(devis)}
+                                                    className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center shadow-sm justify-center w-full"
+                                                >
+                                                    👁️ Résumé
+                                                </button>
+                                                <button
+                                                    onClick={() => router.push(`/devis?edit=${devis.id}`)}
+                                                    className="bg-slate-100 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center shadow-sm hover:bg-slate-200 w-full"
+                                                >
+                                                    <PenTool className="h-3 w-3 mr-1" /> Modifier
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))

@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { ClipboardList, Check, X, Trash2, FileText, MailCheck } from 'lucide-react';
+import { ClipboardList, Check, X, Trash2, FileText, MailCheck, PenTool } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -67,6 +67,12 @@ export default function HistoriquePage() {
                                         >
                                             <X className="h-4 w-4" /> Refusé
                                         </button>
+                                        <Link
+                                            href={`/devis?edit=${devis.id}`}
+                                            className="flex-none flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-bold bg-slate-100 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                                        >
+                                            <PenTool className="h-4 w-4" />
+                                        </Link>
                                         <button
                                             onClick={() => {
                                                 if (window.confirm('Supprimer définitivement ce devis ?')) {

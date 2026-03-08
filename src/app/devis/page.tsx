@@ -552,10 +552,14 @@ export default function NouveauDevisPage() {
             </div>
           </div>
 
-          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-lg font-bold text-slate-800">TOTAL FORFAIT (HTVA)</span>
-              <span className="text-3xl font-black text-blue-700">{totalHT.toFixed(2)} €</span>
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-slate-500">Total (HTVA)</span>
+              <span className="text-lg font-bold text-slate-700">{totalHT.toFixed(2)} €</span>
+            </div>
+            <div className="flex justify-between items-center mt-1 pt-2 border-t border-blue-200/50">
+              <span className="text-lg font-bold text-slate-800">MONTANT (TVAC)</span>
+              <span className="text-3xl font-black text-blue-700">{(totalHT * 1.21).toFixed(2)} €</span>
             </div>
           </div>
         </section>
