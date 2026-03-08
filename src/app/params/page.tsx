@@ -87,6 +87,29 @@ export default function ParamsPage() {
         }));
     };
 
+    const renderMultiplierSection = (title: string, data: Record<string, number>, category: 'size' | 'height' | 'dirtiness') => (
+        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <h2 className="text-lg font-bold text-slate-800 mb-4">{title} <span className="text-sm font-normal text-slate-500">(Multiplicateur)</span></h2>
+            <div className="space-y-3">
+                {Object.entries(data).map(([key, val]) => (
+                    <div key={key} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <span className="text-sm font-medium text-slate-700">{(LABELS as any)[category === 'size' ? 'sizes' : category === 'height' ? 'heights' : 'dirtiness'][key]}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-slate-400 text-sm">x</span>
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={val}
+                                onChange={(e) => handleMultChange(category, key, parseFloat(e.target.value) || 0)}
+                                className="w-20 rounded border-slate-300 border p-2 text-sm text-right focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
             <header className="bg-blue-800 text-white shadow-md sticky top-0 z-10 pb-[2px]">
@@ -331,6 +354,11 @@ export default function ParamsPage() {
                                 )}
                             </div>
                         </section>
+
+                        {/* MULTIPLICATEURS */}
+                        {renderMultiplierSection('Taille de Vitre', localConfig.multipliers.size, 'size')}
+                        {renderMultiplierSection('Hauteur', localConfig.multipliers.height, 'height')}
+                        {renderMultiplierSection('Niveau de Saleté', localConfig.multipliers.dirtiness, 'dirtiness')}
                     </div>
                 )}
 
