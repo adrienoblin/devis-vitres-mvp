@@ -12,10 +12,8 @@ const styles = StyleSheet.create({
         fontFamily: 'Helvetica',
         fontSize: 10,
         color: '#1E293B',
+        paddingTop: 140,
         paddingBottom: 60,
-    },
-    headerSpace: {
-        height: 120,
     },
     headerBg: {
         position: 'absolute',
@@ -156,7 +154,8 @@ const styles = StyleSheet.create({
     tdTotal: { flex: 2, textAlign: 'right', fontWeight: 'bold', color: '#0f172a' },
     totalsSection: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
         paddingHorizontal: 40,
         marginBottom: 40,
     },
@@ -198,13 +197,6 @@ const styles = StyleSheet.create({
         fontSize: 8,
         color: '#64748b',
         lineHeight: 1.5,
-    },
-    signatureSection: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 40,
-        marginTop: 150, // Space to clear the header on the new page
-        marginBottom: 20
     },
     signatureBox: {
         width: 150,
@@ -291,9 +283,6 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                     </View>
                 </View>
 
-                {/* Padding for header */}
-                <View style={styles.headerSpace} />
-
                 {/* Title */}
                 <View style={styles.documentTitleSection}>
                     <Text style={styles.titleHuge}>DEVIS</Text>
@@ -341,6 +330,18 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
 
                 {/* Totals */}
                 <View style={styles.totalsSection}>
+                    {/* Left side: Signature */}
+                    <View style={styles.signatureBox}>
+                        {devis.signature && (
+                            <>
+                                <Text style={styles.signatureLabel}>Bon pour accord :</Text>
+                                <Image src={devis.signature} style={styles.signatureImage} />
+                                <Text style={{ fontSize: 8, color: '#94a3b8', marginTop: 4 }}>Signé le {formattedDate}</Text>
+                            </>
+                        )}
+                    </View>
+
+                    {/* Right side: Totals */}
                     <View style={styles.totalsBox}>
                         <View style={styles.totalRow}>
                             <Text style={styles.totalLabel}>Sous-total (HTVA)</Text>
@@ -357,9 +358,9 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                     </View>
                 </View>
 
-                {/* Notes and Signature */}
-                <View style={styles.signatureSection} break>
-                    <View style={{ flex: 1, paddingRight: 40 }}>
+                {/* CGV and Notes on a new page */}
+                {(devis.notes || config.cgv) && (
+                    <View break style={{ paddingHorizontal: 40 }}>
                         {devis.notes && (
                             <View style={{ marginBottom: 15 }}>
                                 <Text style={styles.cgvTitle}>Notes Additionnelles</Text>
@@ -373,15 +374,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                             {config.cgv || "Entreprise de nettoyage – Verviers, Liège, Sprimont & alentours."}
                         </Text>
                     </View>
-
-                    {devis.signature && (
-                        <View style={styles.signatureBox}>
-                            <Text style={styles.signatureLabel}>Bon pour accord :</Text>
-                            <Image src={devis.signature} style={styles.signatureImage} />
-                            <Text style={{ fontSize: 8, color: '#94a3b8', marginTop: 4 }}>Signé  le {formattedDate}</Text>
-                        </View>
-                    )}
-                </View>
+                )}
 
                 {/* Footer Background */}
                 <View style={styles.footerContainer} fixed>
