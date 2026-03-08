@@ -10,7 +10,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { syncHubspotContacts, processOfflineTasks } from '@/lib/hubspot';
-import { generateDevisPDF } from '@/lib/pdf';
+import { generateDevisPDF, downloadDevisPDF } from '@/lib/pdf';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 type ViewMode = 'list' | 'detail' | 'form';
@@ -189,19 +190,25 @@ export default function ClientsPage() {
     );
 
     const [showModal, setShowModal] = useState<DevisData | null>(null);
-    const [showEmailModal, setShowEmailModal] = useState<DevisData | null>(null);
+    const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
     const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string>('');
+    const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
 
     useEffect(() => {
+        let active = true;
         let objectUrl = '';
         if (showModal && selectedClient) {
-            const b64 = generateDevisPDF(showModal, selectedClient, config);
-            fetch(b64).then(res => res.blob()).then(blob => {
-                objectUrl = URL.createObjectURL(blob);
-                setPdfPreviewUrl(objectUrl);
+            generateDevisPDF(showModal, selectedClient, config).then(b64 => {
+                if (!active) return;
+                fetch(b64).then(res => res.blob()).then(blob => {
+                    if (!active) return;
+                    objectUrl = URL.createObjectURL(blob);
+                    setPdfPreviewUrl(objectUrl);
+                });
             });
         }
         return () => {
+            active = false;
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             setPdfPreviewUrl('');
         };
@@ -328,8 +335,16 @@ export default function ClientsPage() {
                             <Button variant="outline" onClick={() => setShowModal(null)} className="flex-1 bg-white/10 text-white border-white/20 hover:bg-white/20 h-14">
                                 Fermer
                             </Button>
-                            <Button onClick={() => setShowEmailModal(showModal)} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 shadow-lg">
-                                <MailCheck className="h-5 w-5 mr-2" /> Envoyer par email
+                            <Button onClick={async () => {
+                                setIsGeneratingEmail(true);
+                                try {
+                                    const b64 = await generateDevisPDF(showModal, selectedClient, config);
+                                    setShowEmailModal({ devis: showModal, base64: b64 });
+                                } finally {
+                                    setIsGeneratingEmail(false);
+                                }
+                            }} disabled={isGeneratingEmail} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 shadow-lg">
+                                {isGeneratingEmail ? <Loader2 className="h-5 w-5 mr-2 animate-spin" /> : <MailCheck className="h-5 w-5 mr-2" />} Envoyer par email
                             </Button>
                         </div>
                     </div>
@@ -340,9 +355,9 @@ export default function ClientsPage() {
                         recipientEmail={selectedClient.email || ''}
                         clientName={selectedClient.name}
                         clientId={selectedClient.id!}
-                        devisDate={format(new Date(showEmailModal.date), 'dd/MM/yyyy')}
-                        totalAmount={showEmailModal.totalHT.toFixed(2)}
-                        pdfBase64={generateDevisPDF(showEmailModal, selectedClient, config)}
+                        devisDate={format(new Date(showEmailModal.devis.date), 'dd/MM/yyyy')}
+                        totalAmount={showEmailModal.devis.totalHT.toFixed(2)}
+                        pdfBase64={showEmailModal.base64}
                         onClose={() => setShowEmailModal(null)}
                     />
                 )}

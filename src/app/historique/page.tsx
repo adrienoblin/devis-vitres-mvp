@@ -8,11 +8,38 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { EmailModal } from '@/components/EmailModal';
 import { DevisData } from '@/lib/store';
-import { generateDevisPDF } from '@/lib/pdf';
+import { generateDevisPDF, downloadDevisPDF } from '@/lib/pdf';
+import { Loader2 } from 'lucide-react';
 
 export default function HistoriquePage() {
     const { devisHistory, clients, updateDevis, deleteDevis, config } = useAppStore();
-    const [emailModalDevis, setEmailModalDevis] = useState<DevisData | null>(null);
+    const [emailModalData, setEmailModalData] = useState<{ devis: DevisData, base64: string } | null>(null);
+    const [generatingId, setGeneratingId] = useState<string | null>(null);
+
+    const handleEmailClick = async (devis: DevisData) => {
+        setGeneratingId(devis.id);
+        try {
+            const client = clients.find(c => c.id === devis.clientId);
+            const base64 = await generateDevisPDF(devis, client, config);
+            setEmailModalData({ devis, base64 });
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setGeneratingId(null);
+        }
+    };
+
+    const handleDownloadClick = async (devis: DevisData) => {
+        setGeneratingId(devis.id);
+        try {
+            const client = clients.find(c => c.id === devis.clientId);
+            await downloadDevisPDF(devis, client, config);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setGeneratingId(null);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -86,10 +113,11 @@ export default function HistoriquePage() {
                                     </div>
                                     <div className="mt-2 text-right">
                                         <button
-                                            onClick={() => setEmailModalDevis(devis)}
+                                            onClick={() => handleEmailClick(devis)}
+                                            disabled={generatingId === devis.id}
                                             className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors"
                                         >
-                                            <MailCheck className="h-4 w-4" /> Envoyer par email
+                                            {(generatingId === devis.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />} Envoyer par email
                                         </button>
                                     </div>
                                 </div>
@@ -99,15 +127,15 @@ export default function HistoriquePage() {
                 )}
             </main>
 
-            {emailModalDevis && (
+            {emailModalData && (
                 <EmailModal
-                    recipientEmail={clients.find(c => c.id === emailModalDevis.clientId)?.email || ''}
-                    clientName={clients.find(c => c.id === emailModalDevis.clientId)?.name || 'Client'}
-                    clientId={emailModalDevis.clientId || ''}
-                    devisDate={format(new Date(emailModalDevis.date), 'dd/MM/yyyy')}
-                    totalAmount={emailModalDevis.totalHT.toFixed(2)}
-                    pdfBase64={generateDevisPDF(emailModalDevis, clients.find(c => c.id === emailModalDevis.clientId), config)}
-                    onClose={() => setEmailModalDevis(null)}
+                    recipientEmail={clients.find(c => c.id === emailModalData.devis.clientId)?.email || ''}
+                    clientName={clients.find(c => c.id === emailModalData.devis.clientId)?.name || 'Client'}
+                    clientId={emailModalData.devis.clientId || ''}
+                    devisDate={format(new Date(emailModalData.devis.date), 'dd/MM/yyyy')}
+                    totalAmount={emailModalData.devis.totalHT.toFixed(2)}
+                    pdfBase64={emailModalData.base64}
+                    onClose={() => setEmailModalData(null)}
                 />
             )}
         </div>

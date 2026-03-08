@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
-import { buildDevisPDFDoc, generateDevisPDF } from '@/lib/pdf';
+import { generateDevisPDF, downloadDevisPDF } from '@/lib/pdf';
 import { EmailModal } from '@/components/EmailModal';
 import {
   Plus,
@@ -55,8 +54,10 @@ export default function NouveauDevisPage() {
   const [extraTaskDescription, setExtraTaskDescription] = useState<string>('');
   const [extraTaskPrice, setExtraTaskPrice] = useState<string>('');
 
-  const [showEmailModal, setShowEmailModal] = useState<DevisData | null>(null);
+  const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
   const signaturePadRef = useRef<SignaturePadRef>(null);
+
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -144,59 +145,64 @@ export default function NouveauDevisPage() {
     return subTotal - discountAmount;
   }, [subTotal, discountAmount]);
 
-  const generateAndSaveDevis = () => {
+  const generateAndSaveDevis = async () => {
     if (windows.length === 0) {
       toast.error("Ajoutez d'abord des prestations au devis.");
       return;
     }
 
-    const currentSignature = signaturePadRef.current?.getSignature() || null;
+    setIsGenerating(true);
+    try {
+      const currentSignature = signaturePadRef.current?.getSignature() || null;
 
-    const newDevis: DevisData = {
-      id: existingDevisId || uuidv4(),
-      clientId: selectedClientId || undefined,
-      date: existingDevisId ? (useAppStore.getState().devisHistory.find(d => d.id === existingDevisId)?.date || new Date().toISOString()) : new Date().toISOString(),
-      items: windows,
-      subTotal,
-      discount,
-      totalHT,
-      statut: 'brouillon',
-      notes,
-      signature: currentSignature || undefined,
-      photos: [],
-      needsSync: true,
-      globalDesignation: globalDesignation.trim() || undefined,
-      extraTaskDescription: extraTaskDescription.trim() || undefined,
-      extraTaskPrice: parseFloat(extraTaskPrice) || undefined
-    };
+      const newDevis: DevisData = {
+        id: existingDevisId || uuidv4(),
+        clientId: selectedClientId || undefined,
+        date: existingDevisId ? (useAppStore.getState().devisHistory.find(d => d.id === existingDevisId)?.date || new Date().toISOString()) : new Date().toISOString(),
+        items: windows,
+        subTotal,
+        discount,
+        totalHT,
+        statut: 'brouillon',
+        notes,
+        signature: currentSignature || undefined,
+        photos: [],
+        needsSync: true,
+        globalDesignation: globalDesignation.trim() || undefined,
+        extraTaskDescription: extraTaskDescription.trim() || undefined,
+        extraTaskPrice: parseFloat(extraTaskPrice) || undefined
+      };
 
-    if (existingDevisId) {
-      updateDevis(existingDevisId, newDevis);
-    } else {
-      addDevis(newDevis);
-    }
+      if (existingDevisId) {
+        updateDevis(existingDevisId, newDevis);
+      } else {
+        addDevis(newDevis);
+      }
 
-    const selectedClient = clients.find(c => c.id === selectedClientId);
-    const doc = buildDevisPDFDoc(newDevis, selectedClient || undefined, config);
-    if (!doc) return;
+      const selectedClient = clients.find(c => c.id === selectedClientId);
+      const pdfBase64 = await generateDevisPDF(newDevis, selectedClient, config);
+      await downloadDevisPDF(newDevis, selectedClient, config);
 
-    const pdfBase64 = doc.output('datauristring');
-    doc.save(`devis-${format(new Date(), 'yyyyMMdd')}-${newDevis.id.substring(0, 4)}.pdf`);
+      if (config.hubspot.token && selectedClientId) {
+        useAppStore.getState().addOfflineTask({
+          id: uuidv4(), type: 'UPLOAD_QUOTE', payload: { clientId: selectedClientId, date: newDevis.date, totalHT, pdfBase64 }, createdAt: new Date().toISOString()
+        });
+        processOfflineTasks();
+      }
 
-    if (config.hubspot.token && selectedClientId) {
-      useAppStore.getState().addOfflineTask({
-        id: uuidv4(), type: 'UPLOAD_QUOTE', payload: { clientId: selectedClientId, date: newDevis.date, totalHT, pdfBase64 }, createdAt: new Date().toISOString()
-      });
-      processOfflineTasks();
-    }
-
-    if (selectedClientId && selectedClientId !== 'passage') {
-      setShowEmailModal(newDevis);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
-    } else {
-      toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
-      router.push('/historique');
+      if (selectedClientId && selectedClientId !== 'passage') {
+        setShowEmailModal({ devis: newDevis, base64: pdfBase64 });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
+      } else {
+        toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
+        router.push('/historique');
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erreur lors de la génération du devis PDF");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -470,8 +476,9 @@ export default function NouveauDevisPage() {
 
         {/* ACTIONS */}
         <div className="pt-2 pb-8">
-          <Button onClick={generateAndSaveDevis} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
-            <Download className="h-6 w-6" /> {existingDevisId ? 'Enregistrer et Générer' : 'Générer le Devis Client'}
+          <Button onClick={generateAndSaveDevis} disabled={isGenerating} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+            {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Download className="h-6 w-6" />}
+            {existingDevisId ? 'Enregistrer et Générer' : 'Générer le Devis Client'}
           </Button>
         </div>
 
@@ -480,9 +487,9 @@ export default function NouveauDevisPage() {
             recipientEmail={clients.find(c => c.id === selectedClientId)?.email || ''}
             clientName={clients.find(c => c.id === selectedClientId)?.name || ''}
             clientId={selectedClientId}
-            devisDate={format(new Date(showEmailModal.date), 'dd/MM/yyyy')}
-            totalAmount={showEmailModal.totalHT.toFixed(2)}
-            pdfBase64={generateDevisPDF(showEmailModal, clients.find(c => c.id === selectedClientId), config)}
+            devisDate={format(new Date(showEmailModal.devis.date), 'dd/MM/yyyy')}
+            totalAmount={showEmailModal.devis.totalHT.toFixed(2)}
+            pdfBase64={showEmailModal.base64}
             onClose={() => {
               setShowEmailModal(null);
               router.push('/historique');
