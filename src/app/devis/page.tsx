@@ -40,7 +40,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function NouveauDevisPage() {
   const router = useRouter();
-  const { config, clients, addDevis } = useAppStore();
+  const { config, clients, addDevis, devisHistory, updateDevis } = useAppStore();
+  const [existingDevisId, setExistingDevisId] = useState<string | null>(null);
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -61,6 +62,21 @@ export default function NouveauDevisPage() {
       const u = new URLSearchParams(window.location.search);
       const cId = u.get('client');
       if (cId) setSelectedClientId(cId);
+
+      const editId = u.get('edit');
+      if (editId) {
+        setExistingDevisId(editId);
+        const devisToEdit = useAppStore.getState().devisHistory.find(d => d.id === editId);
+        if (devisToEdit) {
+          if (devisToEdit.clientId) setSelectedClientId(devisToEdit.clientId);
+          setWindows(devisToEdit.items || []);
+          setDiscount(devisToEdit.discount || 0);
+          setNotes(devisToEdit.notes || '');
+          setGlobalDesignation(devisToEdit.globalDesignation || '');
+          setExtraTaskDescription(devisToEdit.extraTaskDescription || '');
+          setExtraTaskPrice(devisToEdit.extraTaskPrice ? devisToEdit.extraTaskPrice.toString() : '');
+        }
+      }
     }
   }, []);
 
@@ -193,9 +209,9 @@ export default function NouveauDevisPage() {
     const currentSignature = signaturePadRef.current?.getSignature() || null;
 
     const newDevis: DevisData = {
-      id: uuidv4(),
+      id: existingDevisId || uuidv4(),
       clientId: selectedClientId || undefined,
-      date: new Date().toISOString(),
+      date: existingDevisId ? (useAppStore.getState().devisHistory.find(d => d.id === existingDevisId)?.date || new Date().toISOString()) : new Date().toISOString(),
       items: windows,
       subTotal,
       discount,
@@ -209,7 +225,12 @@ export default function NouveauDevisPage() {
       extraTaskDescription: extraTaskDescription.trim() || undefined,
       extraTaskPrice: parseFloat(extraTaskPrice) || undefined
     };
-    addDevis(newDevis);
+
+    if (existingDevisId) {
+      updateDevis(existingDevisId, newDevis);
+    } else {
+      addDevis(newDevis);
+    }
 
     const selectedClient = clients.find(c => c.id === selectedClientId);
     const doc = buildDevisPDFDoc(newDevis, selectedClient || undefined, config);
@@ -239,7 +260,7 @@ export default function NouveauDevisPage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Calculator className="h-6 w-6" />
-            <h1 className="text-xl font-bold">Nouveau Devis</h1>
+            <h1 className="text-xl font-bold">{existingDevisId ? 'Modifier le devis' : 'Nouveau Devis'}</h1>
           </div>
         </div>
       </header>
@@ -575,7 +596,7 @@ export default function NouveauDevisPage() {
         {/* ACTIONS */}
         <div className="pt-2 pb-8">
           <Button onClick={generateAndSaveDevis} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
-            <Download className="h-6 w-6" /> Générer le Devis Client
+            <Download className="h-6 w-6" /> {existingDevisId ? 'Enregistrer et Générer' : 'Générer le Devis Client'}
           </Button>
         </div>
 
