@@ -107,9 +107,11 @@ export const hubspotApi = {
 
         const response = await fetch(`${API_BASE}/files/v3/files`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
+            headers: (() => {
+                const hdrs = getHeaders();
+                delete hdrs['Content-Type']; // Let browser set multipart/form-data with boundary
+                return hdrs;
+            })(),
             body: formData
         });
 
