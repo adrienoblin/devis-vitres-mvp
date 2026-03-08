@@ -56,6 +56,11 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#2563eb'
     },
+    logoImage: {
+        width: 38,
+        height: 38,
+        objectFit: 'contain',
+    },
     companyName: {
         fontSize: 16,
         fontWeight: 'bold',
@@ -311,8 +316,12 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                     </View>
 
                     <View style={styles.logoCentered}>
-                        <View style={styles.logoBox}>
-                            <Text style={styles.logoText}>W—</Text>
+                        <View style={!(config.enterprise.logo) ? styles.logoBox : { marginBottom: 10 }}>
+                            {config.enterprise.logo ? (
+                                <Image src={config.enterprise.logo} style={styles.logoImage} />
+                            ) : (
+                                <Text style={styles.logoText}>W—</Text>
+                            )}
                         </View>
                     </View>
 
