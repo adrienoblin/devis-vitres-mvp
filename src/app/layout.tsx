@@ -22,6 +22,7 @@ export const viewport: Viewport = {
 };
 
 import { BottomNav } from "@/components/BottomNav";
+import { Toaster } from 'react-hot-toast';
 
 export default function RootLayout({
   children,
@@ -34,6 +35,7 @@ export default function RootLayout({
         <div className="flex-1 overflow-y-auto pb-16">
           {children}
         </div>
+        <Toaster position="top-center" />
         <BottomNav />
       </body>
     </html>

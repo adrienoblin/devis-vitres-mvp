@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { syncHubspotContacts, processOfflineTasks } from '@/lib/hubspot';
 import { generateDevisPDF } from '@/lib/pdf';
+import { toast } from 'react-hot-toast';
 
 type ViewMode = 'list' | 'detail' | 'form';
 
@@ -52,7 +53,10 @@ export default function ClientsPage() {
     };
 
     const handleSave = () => {
-        if (!formData.firstname && !formData.name) return alert('Le prénom ou nom est requis');
+        if (!formData.firstname && !formData.name) {
+            toast.error('Le prénom ou nom est requis');
+            return;
+        }
 
         const fullname = formData.name || `${formData.firstname || ''} ${formData.lastname || ''}`.trim();
 
@@ -103,7 +107,7 @@ export default function ClientsPage() {
 
     const handleSync = async () => {
         if (!config.hubspot.token) {
-            alert('Veuillez configurer votre token HubSpot dans les paramètres.');
+            toast.error('Veuillez configurer votre token HubSpot dans les paramètres.');
             return;
         }
         setIsSyncing(true);
@@ -111,9 +115,9 @@ export default function ClientsPage() {
         const success = await syncHubspotContacts();
         setIsSyncing(false);
         if (success) {
-            // alert('Synchronisation réussie !');
+            toast.success('Synchronisation réussie !');
         } else {
-            alert('Erreur lors de la synchronisation.');
+            toast.error('Erreur lors de la synchronisation.');
         }
     };
 

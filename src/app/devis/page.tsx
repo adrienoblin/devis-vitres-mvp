@@ -23,6 +23,7 @@ import {
 import { useRouter } from 'next/navigation';
 import SignaturePad, { SignaturePadRef } from '@/components/SignaturePad';
 import { processOfflineTasks } from '@/lib/hubspot';
+import { toast } from 'react-hot-toast';
 
 
 import {
@@ -137,46 +138,52 @@ export default function NouveauDevisPage() {
   }, [selectedClientId, clients]);
 
   const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      toast.error("La géolocalisation n'est pas supportée par votre navigateur");
+      return;
+    }
+
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-        const data = await res.json();
-        if (data && data.display_name) setTravelEnd(data.display_name);
-      } catch (e) { }
-      setIsLocating(false);
-    }, () => {
-      alert("Erreur de localisation");
-      setIsLocating(false);
-    });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setTravelEnd(`${latitude},${longitude}`);
+        setIsLocating(false);
+        toast.success("Position trouvée !");
+      },
+      (error) => {
+        console.error(error);
+        setIsLocating(false);
+        toast.error("Erreur de localisation. Assurez-vous d'avoir autorisé l'accès à votre position.");
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   const calculateDistance = async () => {
-    if (!travelStart || !travelEnd) return alert("Veuillez saisir les deux adresses");
+    if (!travelStart || !travelEnd) {
+      toast.error("Veuillez saisir les deux adresses pour le calcul");
+      return;
+    }
     setIsCalculating(true);
-    setTravelCalculatedKm(null);
     try {
-      const getCoords = async (addr: string) => {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`);
-        const data = await res.json();
-        if (data && data.length > 0) return { lat: data[0].lat, lon: data[0].lon };
-        return null;
-      };
-      const startCoords = await getCoords(travelStart);
-      const endCoords = await getCoords(travelEnd);
-      if (!startCoords || !endCoords) throw new Error("Impossible de trouver l'une des adresses. Soyez plus précis.");
+      const response = await fetch(`/api/distance?origins=${encodeURIComponent(travelStart)}&destinations=${encodeURIComponent(travelEnd)}`);
+      if (!response.ok) throw new Error("Erreur réseau");
+      const data = await response.json();
 
-      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${startCoords.lon},${startCoords.lat};${endCoords.lon},${endCoords.lat}?overview=false`);
-      const data = await res.json();
-      if (data.code === 'Ok' && data.routes.length > 0) {
-        setTravelCalculatedKm(data.routes[0].distance / 1000);
+      if (data.rows && data.rows[0].elements[0].status === 'OK') {
+        const distanceMeters = data.rows[0].elements[0].distance.value;
+        const distanceKm = distanceMeters / 1000;
+        setTravelCalculatedKm(distanceKm);
+        toast.success(`Distance calculée: ${distanceKm.toFixed(1)} km`);
       } else {
-        throw new Error("Impossible de calculer l'itinéraire");
+        toast.error("Impossible de calculer l'itinéraire via Google Maps.");
       }
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e instanceof Error ? e.message : "Erreur de calcul");
+    } finally {
+      setIsCalculating(false);
     }
-    setIsCalculating(false);
   };
 
   const addTravelToDevis = () => {
@@ -210,7 +217,7 @@ export default function NouveauDevisPage() {
 
   const generateAndSaveDevis = () => {
     if (windows.length === 0) {
-      alert("Ajoutez d'abord des prestations au devis.");
+      toast.error("Ajoutez d'abord des prestations au devis.");
       return;
     }
 
@@ -257,7 +264,9 @@ export default function NouveauDevisPage() {
     if (selectedClientId && selectedClientId !== 'passage') {
       setShowEmailModal(newDevis);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
     } else {
+      toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
       router.push('/historique');
     }
   };
