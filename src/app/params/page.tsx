@@ -54,6 +54,27 @@ export default function ParamsPage() {
         }));
     };
 
+    const handleAddGlobalDesignation = () => {
+        setLocalConfig(prev => ({
+            ...prev,
+            globalDesignations: [...(prev.globalDesignations || []), { id: `gd-${Date.now()}`, label: 'Nouveau choix' }]
+        }));
+    };
+
+    const handleUpdateGlobalDesignation = (id: string, label: string) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            globalDesignations: prev.globalDesignations?.map(g => g.id === id ? { ...g, label } : g) || []
+        }));
+    };
+
+    const handleRemoveGlobalDesignation = (id: string) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            globalDesignations: prev.globalDesignations?.filter(g => g.id !== id) || []
+        }));
+    };
+
     const handleMultChange = (category: 'size' | 'height' | 'dirtiness', key: string, value: number) => {
         setLocalConfig(prev => ({
             ...prev,
@@ -244,6 +265,50 @@ export default function ParamsPage() {
                                 className="mt-2 w-full text-green-600 border-green-200 hover:bg-green-50"
                             >
                                 Restaurer les cartes par défaut
+                            </Button>
+                        )}
+                    </div>
+                </section>
+
+                {/* PRÉFÉRENCES DESIGNATIONS GLOBALES */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">Désignations Globales (PDF)</h2>
+                    <p className="text-xs text-slate-500 mb-4">Gérez la liste des textes de remplacement rapides pour le devis PDF.</p>
+                    <div className="space-y-3">
+                        {localConfig.globalDesignations?.map(gd => (
+                            <div key={gd.id} className="flex items-center gap-3">
+                                <input
+                                    type="text"
+                                    value={gd.label}
+                                    onChange={(e) => handleUpdateGlobalDesignation(gd.id, e.target.value)}
+                                    className="flex-1 rounded border-slate-300 border p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                                <button
+                                    onClick={() => handleRemoveGlobalDesignation(gd.id)}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                        <Button variant="outline" size="sm" onClick={handleAddGlobalDesignation} className="mt-2 w-full text-blue-600 border-blue-200 hover:bg-blue-50">
+                            + Ajouter un choix
+                        </Button>
+                        {(!localConfig.globalDesignations || localConfig.globalDesignations.length === 0) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    import('@/lib/store').then(m => {
+                                        setLocalConfig(prev => ({
+                                            ...prev,
+                                            globalDesignations: m.DEFAULT_CONFIG.globalDesignations
+                                        }));
+                                    });
+                                }}
+                                className="mt-2 w-full text-green-600 border-green-200 hover:bg-green-50"
+                            >
+                                Restaurer les choix par défaut
                             </Button>
                         )}
                     </div>

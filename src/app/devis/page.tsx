@@ -51,6 +51,7 @@ export default function NouveauDevisPage() {
   const [notes, setNotes] = useState<string>('');
 
   const [globalDesignation, setGlobalDesignation] = useState<string>('');
+  const [isCustomDesignation, setIsCustomDesignation] = useState<boolean>(false);
   const [extraTaskDescription, setExtraTaskDescription] = useState<string>('');
   const [extraTaskPrice, setExtraTaskPrice] = useState<string>('');
 
@@ -72,9 +73,16 @@ export default function NouveauDevisPage() {
           setWindows(devisToEdit.items || []);
           setDiscount(devisToEdit.discount || 0);
           setNotes(devisToEdit.notes || '');
-          setGlobalDesignation(devisToEdit.globalDesignation || '');
+          const existingGlobal = devisToEdit.globalDesignation || '';
+          setGlobalDesignation(existingGlobal);
           setExtraTaskDescription(devisToEdit.extraTaskDescription || '');
           setExtraTaskPrice(devisToEdit.extraTaskPrice ? devisToEdit.extraTaskPrice.toString() : '');
+
+          if (existingGlobal) {
+            const { config: currentConfig } = useAppStore.getState();
+            const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === existingGlobal);
+            if (!isMatch) setIsCustomDesignation(true);
+          }
         }
       }
     }
@@ -526,13 +534,37 @@ export default function NouveauDevisPage() {
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-600 block">Désignation globale pour toutes les vitres</label>
               <p className="text-xs text-slate-400 mb-2">Au lieu de détailler chaque encart, ce texte condensera l'ensemble de vos fenêtres en une seule ligne de facturation.</p>
-              <input
-                type="text"
-                placeholder="Ex: Nettoyage intérieur et extérieur de vos vitres"
-                value={globalDesignation}
-                onChange={(e) => setGlobalDesignation(e.target.value)}
-                className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none"
-              />
+              <select
+                value={isCustomDesignation ? 'custom' : globalDesignation}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'custom') {
+                    setIsCustomDesignation(true);
+                    setGlobalDesignation('');
+                  } else {
+                    setIsCustomDesignation(false);
+                    setGlobalDesignation(val);
+                  }
+                }}
+                className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 focus:ring-2 outline-none mb-2"
+              >
+                <option value="">-- Ne pas utiliser de désignation globale --</option>
+                {config.globalDesignations?.map(gd => (
+                  <option key={gd.id} value={gd.label}>{gd.label}</option>
+                ))}
+                <option value="custom">Autre (personnalisé)...</option>
+              </select>
+
+              {isCustomDesignation && (
+                <input
+                  type="text"
+                  placeholder="Ex: Nettoyage complet de façade vitrée"
+                  value={globalDesignation}
+                  onChange={(e) => setGlobalDesignation(e.target.value)}
+                  className="w-full rounded-lg border-blue-300 border p-2.5 text-slate-800 focus:ring-2 outline-none bg-blue-50"
+                  autoFocus
+                />
+              )}
             </div>
 
             <div className="border-t border-slate-100 pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">

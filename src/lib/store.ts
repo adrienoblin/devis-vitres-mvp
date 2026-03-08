@@ -31,6 +31,10 @@ export interface PricingConfig {
         startAddress: string;
         pricePerKm: number;
     };
+    globalDesignations?: {
+        id: string;
+        label: string;
+    }[];
 }
 
 export interface ClientData {
@@ -153,7 +157,13 @@ export const DEFAULT_CONFIG: PricingConfig = {
     travel: {
         startAddress: "Rue de sendrogne 91 4141 Sprimont",
         pricePerKm: 0.57
-    }
+    },
+    globalDesignations: [
+        { id: '1', label: 'Nettoyage intérieur et extérieur de vos vitres' },
+        { id: '2', label: 'Nettoyage de vos vitres, uniquement faces extérieures' },
+        { id: '3', label: 'Nettoyage des vitres de votre véranda' },
+        { id: '4', label: 'Nettoyage intérieur et extérieur de vos vitrines et vitres' }
+    ]
 };
 
 export const useAppStore = create<AppState>()(
