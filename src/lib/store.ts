@@ -220,8 +220,7 @@ export const useAppStore = create<AppState>()(
             clearCurrentDraft: () => set({ currentDraft: null }),
         }),
         {
-            name: 'devis-storage',
-            version: 1, // You can increment this if you have breaking changes to the state shape
+            name: 'prodevis-storage',
             merge: (persistedState: any, currentState: AppState) => {
                 const p = persistedState as AppState;
                 if (!p || !p.config) return { ...currentState, ...p };
