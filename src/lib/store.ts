@@ -220,6 +220,9 @@ export const useAppStore = create<AppState>()(
             clearCurrentDraft: () => set({ currentDraft: null }),
         }),
         {
+            // CRITICAL WARNING: NEVER CHANGE THIS `name` VALUE.
+            // Changing this key ('prodevis-storage') to anything else will create a new empty local database
+            // and cause the user to lose ALL their saved clients, history, settings, and CGV.
             name: 'prodevis-storage',
             merge: (persistedState: any, currentState: AppState) => {
                 const p = persistedState as AppState;
