@@ -386,11 +386,7 @@ export default function NouveauDevisPage() {
                   </button>
                 ))}
               </div>
-              <div className="mt-6 border-t border-slate-100 pt-4">
-                <Button variant="outline" onClick={() => { setShowTravelCalc(true); setShowAddMenu(false); }} className="w-full text-orange-600 border-orange-200 hover:bg-orange-50 flex items-center justify-center gap-2 font-bold py-6 border-dashed">
-                  <MapPin className="h-5 w-5" /> Ajouter des frais de déplacement
-                </Button>
-              </div>
+
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -482,6 +478,9 @@ export default function NouveauDevisPage() {
                   </div>
                 </div>
               ))}
+              <Button variant="outline" size="sm" onClick={() => setShowTravelCalc(true)} className="w-full border-dashed text-orange-600 border-orange-200 hover:bg-orange-50 py-4 h-auto font-bold flex items-center justify-center gap-2 mb-2">
+                <MapPin className="h-4 w-4" /> Ajouter des frais de déplacement
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setExtraTasks(prev => [...prev, { id: uuidv4(), description: '', price: '' }])} className="w-full border-dashed text-blue-600 border-blue-200 hover:bg-blue-50 py-4 h-auto font-medium">
                 + Ajouter une prestation supplémentaire
               </Button>
