@@ -16,10 +16,18 @@ interface EmailModalProps {
 export function EmailModal({ recipientEmail, clientName, clientId, devisDate, totalAmount, pdfBase64, onClose }: EmailModalProps) {
     const { config } = useAppStore();
     const [email, setEmail] = useState(recipientEmail);
-    const [subject, setSubject] = useState(`Devis du ${devisDate} - Wash Up Corp`);
-    const [message, setMessage] = useState(
-        `Bonjour ${clientName},\n\nVeuillez trouver ci-joint votre devis du ${devisDate} pour un montant total de ${totalAmount} €.\n\nRestant à votre disposition pour toute question.\n\nCordialement,\n${config.enterprise.nom}`
-    );
+    const [subject, setSubject] = useState(`Devis du ${devisDate} - ${config.enterprise.nom}`);
+    
+    // Initialise avec le template dynamique
+    const defaultTemplate = `Bonjour {clientName},\n\nVeuillez trouver ci-joint votre devis du {devisDate} pour un montant total de {totalAmount} €.\n\nRestant à votre disposition pour toute question.\n\nCordialement,\n{enterpriseName}`;
+    const rawTemplate = config.email?.template || defaultTemplate;
+    const initialMessage = rawTemplate
+        .replace(/{clientName}/g, clientName)
+        .replace(/{devisDate}/g, devisDate)
+        .replace(/{totalAmount}/g, totalAmount)
+        .replace(/{enterpriseName}/g, config.enterprise.nom);
+
+    const [message, setMessage] = useState(initialMessage);
     const [isSending, setIsSending] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
 

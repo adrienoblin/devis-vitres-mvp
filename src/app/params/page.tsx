@@ -280,6 +280,23 @@ export default function ParamsPage() {
                                     />
                                 </div>
 
+                                <div className="border-t border-slate-100 pt-4 mt-4">
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Message d'accompagnement (Email)</label>
+                                    <p className="text-xs text-slate-400 mb-2">
+                                        Vous pouvez utiliser les codes : <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">{`{clientName}`}</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">{`{devisDate}`}</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">{`{totalAmount}`}</code>, <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-[11px]">{`{enterpriseName}`}</code>
+                                    </p>
+                                    <textarea
+                                        rows={6}
+                                        value={localConfig.email?.template || "Bonjour {clientName},\n\nVeuillez trouver ci-joint votre devis du {devisDate} pour un montant total de {totalAmount} €.\n\nRestant à votre disposition pour toute question.\n\nCordialement,\n{enterpriseName}"}
+                                        onChange={(e) => setLocalConfig(prev => ({
+                                            ...prev,
+                                            email: { ...prev.email, template: e.target.value }
+                                        }))}
+                                        className="w-full rounded-lg border-slate-300 border p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-y font-sans shadow-sm"
+                                        placeholder="Ecrivez votre message ici..."
+                                    />
+                                </div>
+
                                 <div>
                                     <p className="text-sm text-slate-600 bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4">
                                         Pour des raisons de <strong>sécurité</strong>, le mot de passe d'application Gmail n'est plus stocké dans le navigateur. Configurez les variables <code className="bg-white px-1 py-0.5 rounded border border-indigo-200 text-xs">SMTP_EMAIL</code> et <code className="bg-white px-1 py-0.5 rounded border border-indigo-200 text-xs">SMTP_PASSWORD</code> côté serveur.

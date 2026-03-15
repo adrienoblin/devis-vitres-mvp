@@ -21,6 +21,7 @@ export interface PricingConfig {
     email: {
         address: string;
         password: string;
+        template?: string;
     };
     windowTypes: {
         id: string;
@@ -150,6 +151,7 @@ export const DEFAULT_CONFIG: PricingConfig = {
     email: {
         address: "",
         password: "",
+        template: "Bonjour {clientName},\n\nVeuillez trouver ci-joint votre devis du {devisDate} pour un montant total de {totalAmount} €.\n\nRestant à votre disposition pour toute question.\n\nCordialement,\n{enterpriseName}"
     },
     windowTypes: [
         { id: 'classique', name: 'Classique', price: 12 },
