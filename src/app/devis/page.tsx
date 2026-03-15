@@ -242,6 +242,13 @@ export default function NouveauDevisPage() {
     }
   };
 
+  const handleCancel = () => {
+    if (window.confirm("Êtes-vous sûr de vouloir annuler ce devis ? Tout le contenu non enregistré sera perdu.")) {
+      clearCurrentDraft();
+      router.push('/historique');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-blue-800 text-white shadow-md sticky top-0 z-10">
@@ -519,11 +526,18 @@ export default function NouveauDevisPage() {
         </section>
 
         {/* ACTIONS */}
-        <div className="pt-2 pb-8">
+        <div className="pt-2 pb-8 flex flex-col gap-3">
           <Button onClick={generateAndSaveDevis} disabled={isGenerating} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
             {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Download className="h-6 w-6" />}
             {existingDevisId ? 'Enregistrer et Générer' : 'Générer le Devis Client'}
           </Button>
+
+          <button 
+            onClick={handleCancel}
+            className="text-slate-500 hover:text-red-500 font-bold text-sm underline flex items-center justify-center gap-1 py-1 mt-1 mx-auto transition-colors"
+          >
+            <Trash2 className="h-4 w-4" /> Annuler ce devis
+          </button>
         </div>
 
         {showEmailModal && selectedClientId && selectedClientId !== 'passage' && (
