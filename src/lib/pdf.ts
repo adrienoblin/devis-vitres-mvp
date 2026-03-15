@@ -55,3 +55,47 @@ export async function downloadDevisPDF(
         throw e;
     }
 }
+
+export async function generateAndDownloadDevisPDF(
+    devis: DevisData,
+    client: ClientData | undefined,
+    config: PricingConfig
+): Promise<string> {
+    try {
+        const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
+        const blob = await asPdf.toBlob();
+
+        // 1. Trigger Download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const formattedDateId = format(new Date(devis.date), 'yyyyMMdd');
+        a.download = `devis-${formattedDateId}-${devis.id.substring(0, 4)}.pdf`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 200);
+
+        // 2. Convert to Base64
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if (reader.result) {
+                    resolve(reader.result as string);
+                } else {
+                    reject(new Error("Failed to read blob as Base64"));
+                }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.error("Erreur dans generateAndDownloadDevisPDF", e);
+        throw e;
+    }
+}
+

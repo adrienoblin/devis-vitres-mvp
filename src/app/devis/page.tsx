@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
-import { generateDevisPDF, downloadDevisPDF } from '@/lib/pdf';
+import { generateAndDownloadDevisPDF } from '@/lib/pdf';
 import { EmailModal } from '@/components/EmailModal';
 import {
   Plus,
@@ -216,8 +216,7 @@ export default function NouveauDevisPage() {
       }
 
       const selectedClient = clients.find(c => c.id === selectedClientId);
-      const pdfBase64 = await generateDevisPDF(newDevis, selectedClient, config);
-      await downloadDevisPDF(newDevis, selectedClient, config);
+      const pdfBase64 = await generateAndDownloadDevisPDF(newDevis, selectedClient, config);
 
       if (config.hubspot.token && selectedClientId) {
         useAppStore.getState().addOfflineTask({
