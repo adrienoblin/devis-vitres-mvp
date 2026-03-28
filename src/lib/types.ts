@@ -7,6 +7,7 @@ export type Dirtiness = 'propre' | 'legere' | 'tres-sale' | 'remise-en-etat';
 
 export interface WindowItem {
     id: string;
+    categoryId?: string; // Links this item to a specific category section
     type: WindowType;
     size: Size;
     height: Height;

@@ -77,6 +77,27 @@ export default function ParamsPage() {
         }));
     };
 
+    const handleAddSectionTemplate = () => {
+        setLocalConfig(prev => ({
+            ...prev,
+            sectionTemplates: [...(prev.sectionTemplates || []), { id: `st-${Date.now()}`, name: 'Nouveau modèle' }]
+        }));
+    };
+
+    const handleUpdateSectionTemplate = (id: string, name: string) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            sectionTemplates: prev.sectionTemplates?.map(g => g.id === id ? { ...g, name } : g) || []
+        }));
+    };
+
+    const handleRemoveSectionTemplate = (id: string) => {
+        setLocalConfig(prev => ({
+            ...prev,
+            sectionTemplates: prev.sectionTemplates?.filter(g => g.id !== id) || []
+        }));
+    };
+
     const handleMultChange = (category: 'size' | 'height' | 'dirtiness', key: string, value: number) => {
         setLocalConfig(prev => ({
             ...prev,
@@ -367,6 +388,50 @@ export default function ParamsPage() {
                                         className="mt-2 w-full text-green-600 border-green-200 hover:bg-green-50"
                                     >
                                         Restaurer les cartes par défaut
+                                    </Button>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* MODELES DE SECTIONS */}
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                            <h2 className="text-lg font-bold text-slate-800 mb-4">Modèles de Sections (Catégories)</h2>
+                            <p className="text-xs text-slate-500 mb-4">Modèles proposés comme titres lors de l'ajout d'une section au devis.</p>
+                            <div className="space-y-3">
+                                {localConfig.sectionTemplates?.map(st => (
+                                    <div key={st.id} className="flex items-center gap-3">
+                                        <input
+                                            type="text"
+                                            value={st.name}
+                                            onChange={(e) => handleUpdateSectionTemplate(st.id, e.target.value)}
+                                            className="flex-1 rounded border-slate-300 border p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <button
+                                            onClick={() => handleRemoveSectionTemplate(st.id)}
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                <Button variant="outline" size="sm" onClick={handleAddSectionTemplate} className="mt-2 w-full text-blue-600 border-blue-200 hover:bg-blue-50">
+                                    + Ajouter un modèle
+                                </Button>
+                                {(!localConfig.sectionTemplates || localConfig.sectionTemplates.length === 0) && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            import('@/lib/store').then(m => {
+                                                setLocalConfig(prev => ({
+                                                    ...prev,
+                                                    sectionTemplates: m.DEFAULT_CONFIG.sectionTemplates
+                                                }));
+                                            });
+                                        }}
+                                        className="mt-2 w-full text-green-600 border-green-200 hover:bg-green-50"
+                                    >
+                                        Restaurer les modèles par défaut
                                     </Button>
                                 )}
                             </div>

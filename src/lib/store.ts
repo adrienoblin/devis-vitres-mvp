@@ -12,6 +12,8 @@ export interface PricingConfig {
     cgv: string;
     enterprise: {
         nom: string;
+        telephone?: string;
+        email?: string;
         logo?: string;
     };
     hubspot: {
@@ -36,6 +38,10 @@ export interface PricingConfig {
         id: string;
         label: string;
     }[];
+    sectionTemplates?: {
+        id: string;
+        name: string;
+    }[];
 }
 
 export interface ClientData {
@@ -54,10 +60,17 @@ export interface ClientData {
     createdAt: string;
 }
 
+export interface DevisCategory {
+    id: string;
+    name: string;
+    globalDesignation?: string;
+}
+
 export interface DevisData {
     id: string;
     clientId?: string;
     date: string;
+    categories?: DevisCategory[];
     items: WindowItem[];
     subTotal: number;
     discount: number;
@@ -170,6 +183,11 @@ export const DEFAULT_CONFIG: PricingConfig = {
         { id: '2', label: 'Nettoyage de vos vitres, uniquement faces extérieures' },
         { id: '3', label: 'Nettoyage des vitres de votre véranda' },
         { id: '4', label: 'Nettoyage intérieur et extérieur de vos vitrines et vitres' }
+    ],
+    sectionTemplates: [
+        { id: 't1', name: 'Nettoyage de vos vitres' },
+        { id: 't2', name: 'Nettoyage de vos panneaux solaires' },
+        { id: 't3', name: 'Nettoyage de votre pergola' }
     ]
 };
 

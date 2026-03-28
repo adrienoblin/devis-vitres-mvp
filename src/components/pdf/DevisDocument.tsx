@@ -254,7 +254,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     const tva = totalHT * 0.21;
     const totalTTC = totalHT + tva;
 
-    const rows: { name: string, quantity: number, total: number, isTravel?: boolean }[] = [];
+    const rows: { name: string, quantity?: number, total?: number, isTravel?: boolean, isCategoryTitle?: boolean }[] = [];
     const normalItems = devis.items.filter(i => !i.isFraisDeplacement);
 
     if (devis.globalDesignation) {
@@ -268,17 +268,62 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
             });
         }
     } else {
-        const grouped = normalItems.reduce((acc, item) => {
-            const typeName = item.type === 'autre' ? (item.description || 'Autre prestation') : (config.windowTypes?.find(w => w.id === item.type)?.name || item.type);
-            if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
-            acc[typeName].quantity += (item.quantity || 1);
-            acc[typeName].total += calculateWindowPrice(item, config);
-            return acc;
-        }, {} as Record<string, { quantity: number, total: number }>);
+        // Separate items by category
+        const categorizedItems: Record<string, typeof normalItems> = {};
+        const uncategorizedItems: typeof normalItems = [];
 
-        Object.entries(grouped).forEach(([name, data]) => {
-            rows.push({ name, quantity: data.quantity, total: data.total, isTravel: false });
+        normalItems.forEach(item => {
+            if (item.categoryId) {
+                if (!categorizedItems[item.categoryId]) categorizedItems[item.categoryId] = [];
+                categorizedItems[item.categoryId].push(item);
+            } else {
+                uncategorizedItems.push(item);
+            }
         });
+
+        // Helper to group items by type name and add to rows
+        const addItemsToRows = (items: typeof normalItems) => {
+            const grouped = items.reduce((acc, item) => {
+                const typeName = item.type === 'autre' ? (item.description || 'Autre prestation') : (config.windowTypes?.find(w => w.id === item.type)?.name || item.type);
+                if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
+                acc[typeName].quantity += (item.quantity || 1);
+                acc[typeName].total += calculateWindowPrice(item, config);
+                return acc;
+            }, {} as Record<string, { quantity: number, total: number }>);
+
+            Object.entries(grouped).forEach(([name, data]) => {
+                rows.push({ name, quantity: data.quantity, total: data.total, isTravel: false });
+            });
+        };
+
+        // Add uncategorized items first
+        if (uncategorizedItems.length > 0) {
+            addItemsToRows(uncategorizedItems);
+        }
+
+        // Add categorized items
+        if (devis.categories && devis.categories.length > 0) {
+            devis.categories.forEach(cat => {
+                const catItems = categorizedItems[cat.id];
+                if (catItems && catItems.length > 0) {
+                    rows.push({ name: cat.name, isCategoryTitle: true });
+                    
+                    if (cat.globalDesignation) {
+                        const catTotal = catItems.reduce((acc, item) => acc + calculateWindowPrice(item, config), 0);
+                        if (catTotal > 0) {
+                            rows.push({
+                                name: cat.globalDesignation,
+                                quantity: 1,
+                                total: catTotal,
+                                isTravel: false
+                            });
+                        }
+                    } else {
+                        addItemsToRows(catItems);
+                    }
+                }
+            });
+        }
     }
 
     // Handle multiple extra tasks and old devis format fallback
@@ -363,14 +408,27 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                     </View>
 
                     {rows.map((row, index) => {
+                        if (row.isCategoryTitle) {
+                            return (
+                                <View style={[styles.tableRow, { backgroundColor: '#f1f5f9', paddingVertical: 8 }]} key={`cat-${index}`}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontWeight: 'bold', fontSize: 11, color: '#1e293b', textTransform: 'uppercase' }}>
+                                            {row.name}
+                                        </Text>
+                                    </View>
+                                </View>
+                            );
+                        }
+
                         const qty = row.quantity || 1;
-                        let pU = row.total / qty;
+                        const rowTotal = row.total || 0;
+                        let pU = rowTotal / qty;
 
                         // Display quantity handling: if globalDesignation is used for the row, keep 1.
                         let displayQuantity = qty.toString();
                         if (devis.globalDesignation && row.name === devis.globalDesignation) {
                             displayQuantity = "1";
-                            pU = row.total;
+                            pU = rowTotal;
                         }
 
                         let displayUnitPrice = pU.toFixed(2) + " €";
@@ -387,7 +445,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                                 </View>
                                 <Text style={styles.tdQty}>{displayQuantity}</Text>
                                 <Text style={styles.tdPriceUnit}>{displayUnitPrice}</Text>
-                                <Text style={styles.tdTotal}>{row.total.toFixed(2)} €</Text>
+                                <Text style={styles.tdTotal}>{rowTotal.toFixed(2)} €</Text>
                             </View>
                         );
                     })}
@@ -424,22 +482,30 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                 </View>
 
                 {/* CGV and Notes on a new page */}
-                {(devis.notes || config.cgv) && (
-                    <View break style={{ paddingHorizontal: 40 }}>
-                        {devis.notes && (
-                            <View style={{ marginBottom: 15 }}>
-                                <Text style={styles.cgvTitle}>Notes Additionnelles</Text>
-                                <Text style={{ fontSize: 9, color: '#475569', lineHeight: 1.4 }}>{devis.notes}</Text>
-                            </View>
-                        )}
-                        <Text style={styles.cgvTitle}>Conditions Générales</Text>
-                        <Text style={styles.cgvText}>
-                            Wash Up Corp – Adrien Oblin{'\n'}
-                            Contact: adrien.oblin@gmail.com - 0475/32.35.70{'\n'}
-                            {config.cgv || "Entreprise de nettoyage – Verviers, Liège, Sprimont & alentours."}
-                        </Text>
-                    </View>
-                )}
+                <View break style={{ paddingHorizontal: 40 }}>
+                    {devis.notes && (
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={styles.cgvTitle}>Notes Additionnelles</Text>
+                            <Text style={{ fontSize: 9, color: '#475569', lineHeight: 1.4 }}>{devis.notes}</Text>
+                        </View>
+                    )}
+
+                    {travelItems.length > 0 && devis.categories && devis.categories.length > 1 && (
+                        <View style={{ marginBottom: 15 }}>
+                            <Text style={styles.cgvTitle}>Information sur les frais de déplacement</Text>
+                            <Text style={{ fontSize: 9, color: '#1e293b', fontWeight: 'bold', lineHeight: 1.4 }}>
+                                Les frais de déplacement ne seront affectés que sur la prestation choisie ou sur le groupe de prestations si vous en validez plusieurs.
+                            </Text>
+                        </View>
+                    )}
+
+                    <Text style={styles.cgvTitle}>Conditions Générales</Text>
+                    <Text style={styles.cgvText}>
+                        Wash Up Corp – Adrien Oblin{'\n'}
+                        Contact: adrien.oblin@gmail.com - 0475/32.35.70{'\n'}
+                        {config.cgv || "Entreprise de nettoyage – Verviers, Liège, Sprimont & alentours."}
+                    </Text>
+                </View>
 
                 {/* Footer Background */}
                 <View style={styles.footerContainer} fixed>

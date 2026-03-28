@@ -34,7 +34,7 @@ import { TravelCalculatorModal } from '@/components/devis/TravelCalculatorModal'
   LABELS,
   calculateWindowPrice
 } from '@/lib/types';
-import { useAppStore, DevisData } from '@/lib/store';
+import { useAppStore, DevisData, DevisCategory } from '@/lib/store';
 import { Button } from '@/components/ui/Button';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,12 +45,15 @@ export default function NouveauDevisPage() {
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
 
+  const [categories, setCategories] = useState<DevisCategory[]>([]);
   const [windows, setWindows] = useState<WindowItem[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [notes, setNotes] = useState<string>('');
 
   const [globalDesignation, setGlobalDesignation] = useState<string>('');
   const [isCustomDesignation, setIsCustomDesignation] = useState<boolean>(false);
+  const [customCategoryDesignations, setCustomCategoryDesignations] = useState<Record<string, boolean>>({});
+  const [customCategoryNames, setCustomCategoryNames] = useState<Record<string, boolean>>({});
   const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, price: string }[]>([]);
 
   const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
@@ -80,12 +83,30 @@ export default function NouveauDevisPage() {
             loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
           }
           setExtraTasks(loadedExtraTasks);
+          setCategories(devisToEdit.categories || []);
 
           if (existingGlobal) {
             const { config: currentConfig } = useAppStore.getState();
             const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === existingGlobal);
             if (!isMatch) setIsCustomDesignation(true);
           }
+          
+          const initialCustomCats: Record<string, boolean> = {};
+          const initialCustomNames: Record<string, boolean> = {};
+          (devisToEdit.categories || []).forEach(c => {
+            if (c.globalDesignation) {
+               const { config: currentConfig } = useAppStore.getState();
+               const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
+               if (!isMatch) initialCustomCats[c.id] = true;
+            }
+            if (c.name) {
+               const { config: currentConfig } = useAppStore.getState();
+               const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
+               if (!isMatch) initialCustomNames[c.id] = true;
+            }
+          });
+          setCustomCategoryDesignations(initialCustomCats);
+          setCustomCategoryNames(initialCustomNames);
         }
       } else {
         // Resume from draft if it exists
@@ -97,6 +118,25 @@ export default function NouveauDevisPage() {
           if (draft.notes) setNotes(draft.notes);
           if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
           if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString() })));
+          if (draft.categories) {
+             setCategories(draft.categories);
+             const initialCustomCats: Record<string, boolean> = {};
+             const initialCustomNames: Record<string, boolean> = {};
+             draft.categories.forEach(c => {
+               if (c.globalDesignation) {
+                 const { config: currentConfig } = useAppStore.getState();
+                 const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
+                 if (!isMatch) initialCustomCats[c.id] = true;
+               }
+               if (c.name) {
+                 const { config: currentConfig } = useAppStore.getState();
+                 const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
+                 if (!isMatch) initialCustomNames[c.id] = true;
+               }
+             });
+             setCustomCategoryDesignations(initialCustomCats);
+             setCustomCategoryNames(initialCustomNames);
+          }
         }
       }
     }
@@ -110,9 +150,10 @@ export default function NouveauDevisPage() {
     if (!existingDevisId) {
       const timer = setTimeout(() => {
         // Only save if there's actually something entered to avoid blank drafts overriding history
-        if (windows.length > 0 || selectedClientId || notes || extraTasks.length > 0) {
+        if (windows.length > 0 || selectedClientId || notes || extraTasks.length > 0 || categories.length > 0) {
           updateCurrentDraft({
             clientId: selectedClientId || undefined,
+            categories,
             items: windows,
             discount,
             notes,
@@ -123,13 +164,31 @@ export default function NouveauDevisPage() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [windows, selectedClientId, discount, notes, globalDesignation, extraTasks, existingDevisId, updateCurrentDraft]);
+  }, [windows, selectedClientId, discount, notes, globalDesignation, extraTasks, categories, existingDevisId, updateCurrentDraft]);
 
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState<string | false>(false);
 
-  const addCard = (typeId: string) => {
+  const addCategory = () => {
+    const newId = uuidv4();
+    setCategories([...categories, { id: newId, name: '' }]);
+    // Select dropdown will show default when empty
+  };
+
+  const updateCategory = (id: string, updates: Partial<DevisCategory>) => {
+    setCategories(categories.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  const removeCategory = (id: string) => {
+    if (window.confirm("Voulez-vous supprimer cette section ? Les prestations à l'intérieur seront déplacées vers le haut.")) {
+      setCategories(categories.filter(c => c.id !== id));
+      setWindows(windows.map(w => w.categoryId === id ? { ...w, categoryId: undefined } : w));
+    }
+  };
+
+  const addCard = (typeId: string, categoryId?: string) => {
     setWindows([...windows, {
       id: uuidv4(),
+      categoryId: categoryId === 'ROOT' ? undefined : categoryId,
       type: typeId,
       size: 'moyenne',
       height: 'homme',
@@ -195,6 +254,7 @@ export default function NouveauDevisPage() {
         id: existingDevisId || uuidv4(),
         clientId: selectedClientId || undefined,
         date: existingDevisId ? (useAppStore.getState().devisHistory.find(d => d.id === existingDevisId)?.date || new Date().toISOString()) : new Date().toISOString(),
+        categories,
         items: windows,
         subTotal,
         discount,
@@ -248,6 +308,141 @@ export default function NouveauDevisPage() {
     }
   };
 
+  const renderWindowCard = (w: WindowItem) => {
+    const wt = config.windowTypes?.find(type => type.id === w.type);
+    const title = w.type === 'autre' ? (w.description || 'Frais de déplacement') : (wt?.name || w.type);
+
+    if (w.isFraisDeplacement) {
+      return (
+        <div key={w.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 relative">
+          <button onClick={() => removeWindow(w.id)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><Trash2 className="h-5 w-5" /></button>
+          <div className="pr-8">
+            <h3 className="font-bold text-lg text-slate-800 mb-2 whitespace-pre-wrap">{title}</h3>
+            <p className="font-black text-blue-700 text-xl">{calculateWindowPrice(w, config).toFixed(2)} €</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={w.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative flex flex-col gap-4">
+        <div className="flex justify-between items-start">
+          <h3 className="font-bold text-lg text-slate-800">{title}</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={() => duplicateCard(w)} className="p-1.5 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 shadow-sm"><Copy className="h-5 w-5" /></button>
+            <button onClick={() => removeWindow(w.id)} className="p-1.5 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 hover:border-red-200 rounded-lg transition-colors border border-slate-200 shadow-sm"><Trash2 className="h-5 w-5" /></button>
+          </div>
+        </div>
+
+        {/* ROW 1: SIZE */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Taille</span>
+          <div className="grid grid-cols-4 gap-2">
+            {(Object.keys(LABELS.sizes) as Size[]).map(s => (
+              <button
+                key={s}
+                onClick={() => updateCard(w.id, { size: s })}
+                className={`py-2 px-1 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.size === s ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                <span className="truncate w-full text-center px-0.5">{LABELS.sizes[s]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ROW 2: HEIGHT */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Hauteur</span>
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.keys(LABELS.heights) as Height[]).map(h => (
+              <button
+                key={h}
+                onClick={() => updateCard(w.id, { height: h })}
+                className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.height === h ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                <span className="truncate w-full text-center px-0.5">{LABELS.heights[h]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ROW 3: DIRTINESS */}
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Salissure</span>
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.keys(LABELS.dirtiness) as Dirtiness[]).filter(d => d !== 'propre').map(d => (
+              <button
+                key={d}
+                onClick={() => updateCard(w.id, { dirtiness: d })}
+                className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.dirtiness === d ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                <span className="truncate w-full text-center px-0.5">{LABELS.dirtiness[d]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 pt-4 mt-2 border-t border-slate-100">
+          <div className="flex-1 space-y-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Notes (Optionnel)</span>
+            <input
+              type="text"
+              value={w.note || ''}
+              onChange={(e) => updateCard(w.id, { note: e.target.value })}
+              placeholder="Ex: Difficile d'accès"
+              className="w-full text-sm p-2.5 rounded-lg border border-slate-300 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
+            />
+          </div>
+
+          <div className="w-full sm:w-[130px] flex flex-col gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Quantité</span>
+            <div className="flex items-center justify-between border border-slate-300 rounded-lg overflow-hidden h-11 bg-white shadow-sm">
+              <button onClick={() => updateCard(w.id, { quantity: Math.max(0, w.quantity - 1) })} className="w-11 h-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xl border-r border-slate-200 flex justify-center items-center transition-colors">-</button>
+              <input
+                type="number"
+                min="0"
+                value={w.quantity}
+                onChange={(e) => updateCard(w.id, { quantity: parseInt(e.target.value) || 0 })}
+                className="w-10 text-center font-black text-slate-800 outline-none text-lg bg-transparent"
+              />
+              <button onClick={() => updateCard(w.id, { quantity: w.quantity + 1 })} className="w-11 h-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-black text-xl border-l border-slate-200 flex justify-center items-center transition-colors">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-lg border border-blue-100/50 mt-2">
+          <span className="text-sm font-bold text-blue-900">Sous-total :</span>
+          <span className="font-black text-blue-700 text-xl">{calculateWindowPrice(w, config).toFixed(2)} €</span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAddMenu = (categoryId: string) => {
+    if (showAddMenu === categoryId) {
+      return (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200 bg-white rounded-xl shadow-sm border border-blue-200 p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Ajouter une prestation</h3>
+            <button onClick={() => setShowAddMenu(false)} className="p-1.5 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {(config.windowTypes || []).map(wt => (
+              <button key={wt.id} onClick={() => addCard(wt.id, categoryId)} className="p-3 bg-white border-2 border-slate-200 hover:border-blue-500 rounded-xl text-sm font-bold text-slate-700 hover:text-blue-700 text-center transition-all shadow-sm flex items-center justify-center">
+                <span className="truncate">{wt.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <Button variant="outline" onClick={() => setShowAddMenu(categoryId)} className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 font-bold py-4 border-dashed bg-white text-base">
+        + Ajouter type de vitre
+      </Button>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-blue-800 text-white shadow-md sticky top-0 z-10">
@@ -265,143 +460,109 @@ export default function NouveauDevisPage() {
         <ClientSelector selectedClientId={selectedClientId} setSelectedClientId={setSelectedClientId} />
 
         {/* CARDS SECTION */}
-        <section className="space-y-4">
-          {windows.map((w) => {
-            const wt = config.windowTypes?.find(type => type.id === w.type);
-            const title = w.type === 'autre' ? (w.description || 'Frais de déplacement') : (wt?.name || w.type);
+        <section className="space-y-6">
+          {/* ROOT ITEMS (No category) */}
+          <div className="space-y-4">
+            {windows.filter(w => !w.categoryId).map((w) => renderWindowCard(w))}
+          </div>
 
-            if (w.isFraisDeplacement) {
-              return (
-                <div key={w.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 relative">
-                  <button onClick={() => removeWindow(w.id)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500"><Trash2 className="h-5 w-5" /></button>
-                  <div className="pr-8">
-                    <h3 className="font-bold text-lg text-slate-800 mb-2 whitespace-pre-wrap">{title}</h3>
-                    <p className="font-black text-blue-700 text-xl">{calculateWindowPrice(w, config).toFixed(2)} €</p>
-                  </div>
-                </div>
-              )
-            }
-
-            return (
-              <div key={w.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative flex flex-col gap-4">
-
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-lg text-slate-800">{title}</h3>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => duplicateCard(w)} className="p-1.5 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200 shadow-sm"><Copy className="h-5 w-5" /></button>
-                    <button onClick={() => removeWindow(w.id)} className="p-1.5 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-red-50 hover:border-red-200 rounded-lg transition-colors border border-slate-200 shadow-sm"><Trash2 className="h-5 w-5" /></button>
-                  </div>
-                </div>
-
-                {/* ROW 1: SIZE */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Taille</span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {(Object.keys(LABELS.sizes) as Size[]).map(s => (
-                      <button
-                        key={s}
-                        onClick={() => updateCard(w.id, { size: s })}
-                        className={`py-2 px-1 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.size === s ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                      >
-                        <span className="truncate w-full text-center px-0.5">{LABELS.sizes[s]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ROW 2: HEIGHT */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Hauteur</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(Object.keys(LABELS.heights) as Height[]).map(h => (
-                      <button
-                        key={h}
-                        onClick={() => updateCard(w.id, { height: h })}
-                        className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.height === h ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                      >
-                        <span className="truncate w-full text-center px-0.5">{LABELS.heights[h]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ROW 3: DIRTINESS */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Salissure</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(Object.keys(LABELS.dirtiness) as Dirtiness[]).filter(d => d !== 'propre').map(d => (
-                      <button
-                        key={d}
-                        onClick={() => updateCard(w.id, { dirtiness: d })}
-                        className={`py-2 px-2 text-xs rounded-lg font-bold transition-all border shadow-sm flex items-center justify-center ${w.dirtiness === d ? 'bg-blue-600 text-white border-blue-700 shadow-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
-                      >
-                        <span className="truncate w-full text-center px-0.5">{LABELS.dirtiness[d]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 pt-4 mt-2 border-t border-slate-100">
+          {/* CATEGORIES */}
+          {categories.map(cat => (
+            <div key={cat.id} className="bg-slate-100 rounded-2xl p-4 border border-slate-200">
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="flex items-start gap-3">
                   <div className="flex-1 space-y-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Notes (Optionnel)</span>
+                    <select
+                      value={customCategoryNames[cat.id] ? 'custom' : (cat.name || '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === 'custom') {
+                          setCustomCategoryNames(prev => ({ ...prev, [cat.id]: true }));
+                          updateCategory(cat.id, { name: '' });
+                        } else {
+                          setCustomCategoryNames(prev => ({ ...prev, [cat.id]: false }));
+                          updateCategory(cat.id, { name: val });
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-3 font-bold text-slate-800 text-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                    >
+                      <option value="" disabled>-- Choisir un modèle de section --</option>
+                      {config.sectionTemplates?.map(st => (
+                        <option key={st.id} value={st.name}>{st.name}</option>
+                      ))}
+                      <option value="custom">Autre (personnalisé)...</option>
+                    </select>
+
+                    {customCategoryNames[cat.id] && (
+                      <input
+                        type="text"
+                        value={cat.name}
+                        onChange={(e) => updateCategory(cat.id, { name: e.target.value })}
+                        className="w-full bg-white border border-blue-300 rounded-lg p-3 font-bold text-slate-800 text-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        placeholder="Saisissez le titre de la section..."
+                        autoFocus
+                      />
+                    )}
+                  </div>
+                  <button title="Supprimer la section" onClick={() => removeCategory(cat.id)} className="p-3 bg-white border border-slate-300 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm">
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2 mb-4 bg-white p-3 border border-slate-200 rounded-lg">
+                  <label className="text-sm font-medium text-slate-600 block">Désignation globale de section (Optionnel)</label>
+                  <select
+                    value={customCategoryDesignations[cat.id] ? 'custom' : (cat.globalDesignation || '')}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        setCustomCategoryDesignations(prev => ({ ...prev, [cat.id]: true }));
+                        updateCategory(cat.id, { globalDesignation: '' });
+                      } else {
+                        setCustomCategoryDesignations(prev => ({ ...prev, [cat.id]: false }));
+                        updateCategory(cat.id, { globalDesignation: val });
+                      }
+                    }}
+                    className="w-full rounded-lg border-slate-300 border p-2.5 text-slate-800 text-sm focus:ring-2 outline-none"
+                  >
+                    <option value="">-- Ne pas utiliser de désignation globale --</option>
+                    {config.globalDesignations?.map(gd => (
+                      <option key={gd.id} value={gd.label}>{gd.label}</option>
+                    ))}
+                    <option value="custom">Autre (personnalisé)...</option>
+                  </select>
+
+                  {customCategoryDesignations[cat.id] && (
                     <input
                       type="text"
-                      value={w.note || ''}
-                      onChange={(e) => updateCard(w.id, { note: e.target.value })}
-                      placeholder="Ex: Difficile d'accès"
-                      className="w-full text-sm p-2.5 rounded-lg border border-slate-300 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
+                      value={cat.globalDesignation || ''}
+                      onChange={(e) => updateCategory(cat.id, { globalDesignation: e.target.value })}
+                      className="w-full mt-2 bg-blue-50 border border-blue-300 rounded-lg p-2.5 text-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                      placeholder="Saisissez la désignation personnalisée..."
+                      autoFocus
                     />
-                  </div>
-
-                  <div className="w-full sm:w-[130px] flex flex-col gap-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Quantité</span>
-                    <div className="flex items-center justify-between border border-slate-300 rounded-lg overflow-hidden h-11 bg-white shadow-sm">
-                      <button onClick={() => updateCard(w.id, { quantity: Math.max(0, w.quantity - 1) })} className="w-11 h-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xl border-r border-slate-200 flex justify-center items-center transition-colors">-</button>
-                      <input
-                        type="number"
-                        min="0"
-                        value={w.quantity}
-                        onChange={(e) => updateCard(w.id, { quantity: parseInt(e.target.value) || 0 })}
-                        className="w-10 text-center font-black text-slate-800 outline-none text-lg bg-transparent"
-                      />
-                      <button onClick={() => updateCard(w.id, { quantity: w.quantity + 1 })} className="w-11 h-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-black text-xl border-l border-slate-200 flex justify-center items-center transition-colors">+</button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-lg border border-blue-100/50 mt-2">
-                  <span className="text-sm font-bold text-blue-900">Sous-total :</span>
-                  <span className="font-black text-blue-700 text-xl">{calculateWindowPrice(w, config).toFixed(2)} €</span>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </section>
 
-        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mt-4 border-t-4 border-t-blue-500">
-          {showAddMenu ? (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Ajouter une prestation</h3>
-                <button onClick={() => setShowAddMenu(false)} className="p-1.5 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"><X className="h-4 w-4" /></button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {(config.windowTypes || []).map(wt => (
-                  <button key={wt.id} onClick={() => addCard(wt.id)} className="p-4 bg-white border-2 border-slate-200 hover:border-blue-500 rounded-xl text-sm font-bold text-slate-700 hover:text-blue-700 text-center transition-all shadow-sm flex items-center justify-center">
-                    <span className="truncate">{wt.name}</span>
-                  </button>
-                ))}
+              <div className="space-y-4">
+                {windows.filter(w => w.categoryId === cat.id).map(w => renderWindowCard(w))}
               </div>
 
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                {renderAddMenu(cat.id)}
+              </div>
             </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <Button variant="outline" onClick={() => setShowAddMenu(true)} className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 font-bold py-6 border-dashed bg-white text-base">
-                + Ajouter type de vitre
-              </Button>
-            </div>
-          )}
+          ))}
+
+          {/* ROOT ADD MENU */}
+          <div className="pt-2">
+            {renderAddMenu('ROOT')}
+          </div>
         </section>
+
+        {/* TRAVEL CALC MODAL */}
+
 
         {/* TRAVEL CALC MODAL */}
         <TravelCalculatorModal
@@ -489,6 +650,9 @@ export default function NouveauDevisPage() {
               </Button>
               <Button variant="outline" size="sm" onClick={() => setExtraTasks(prev => [...prev, { id: uuidv4(), description: '', price: '' }])} className="w-full border-dashed text-blue-600 border-blue-200 hover:bg-blue-50 py-4 h-auto font-medium">
                 + Ajouter une prestation supplémentaire
+              </Button>
+              <Button variant="outline" size="sm" onClick={addCategory} className="w-full border-dashed text-purple-600 border-purple-200 hover:bg-purple-50 py-4 h-auto font-bold flex items-center justify-center gap-2">
+                <Plus className="h-4 w-4" /> Ajouter une section (Ex: Nettoyage panneaux)
               </Button>
             </div>
 
