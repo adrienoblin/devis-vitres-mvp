@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { DevisData, PricingConfig, ClientData } from '@/lib/store';
-import { pdf } from '@react-pdf/renderer';
+import { pdf, Document } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { DevisDocument } from '@/components/pdf/DevisDocument';
 
@@ -12,7 +12,8 @@ export async function generateDevisPDF(
     try {
         const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
         const blob = await asPdf.toBlob();
-        return new Promise((resolve, reject) => {
+        
+        const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 if (reader.result) {
@@ -24,6 +25,10 @@ export async function generateDevisPDF(
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+        
+        // Cleanup Yoga memory leak
+        asPdf.updateContainer(createElement(Document, {} as any));
+        return base64;
     } catch (e) {
         console.error("Erreur lors de la génération du PDF (Base64)", e);
         throw e;
@@ -38,18 +43,32 @@ export async function downloadDevisPDF(
     try {
         const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
         const blob = await asPdf.toBlob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `devis-${format(new Date(devis.date), 'yyyyMMdd')}-${devis.id.substring(0, 4)}.pdf`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
+        
+        const formattedDateId = format(new Date(devis.date), 'yyyyMMdd');
+        const filename = `devis-${formattedDateId}-${devis.id.substring(0, 4)}.pdf`;
 
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 100);
+        // Native share on mobile (PWA safe)
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                const file = new File([blob], filename, { type: 'application/pdf' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `Devis Wash Up`,
+                    });
+                } else {
+                    throw new Error("Cannot share");
+                }
+            } catch (err) {
+                console.warn("Share failed, falling back to download", err);
+                triggerStandardDownload(blob, filename);
+            }
+        } else {
+            triggerStandardDownload(blob, filename);
+        }
+
+        // Cleanup Yoga memory leak
+        asPdf.updateContainer(createElement(Document, {} as any));
     } catch (e) {
         console.error("Erreur lors du téléchargement du PDF", e);
         throw e;
@@ -61,27 +80,38 @@ export async function generateAndDownloadDevisPDF(
     client: ClientData | undefined,
     config: PricingConfig
 ): Promise<string> {
+    const ReactPdf = await import('@react-pdf/renderer');
+    const { pdf, Document } = ReactPdf;
+
     try {
         const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
         const blob = await asPdf.toBlob();
 
-        // 1. Trigger Download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
         const formattedDateId = format(new Date(devis.date), 'yyyyMMdd');
-        a.download = `devis-${formattedDateId}-${devis.id.substring(0, 4)}.pdf`;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
+        const filename = `devis-${formattedDateId}-${devis.id.substring(0, 4)}.pdf`;
 
-        setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }, 200);
+        // Native share on mobile (PWA safe)
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                const file = new File([blob], filename, { type: 'application/pdf' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `Devis Wash Up`,
+                    });
+                } else {
+                    throw new Error("Cannot share files on this device");
+                }
+            } catch (err) {
+                console.warn("Share failed, falling back to download", err);
+                triggerStandardDownload(blob, filename);
+            }
+        } else {
+            triggerStandardDownload(blob, filename);
+        }
 
-        // 2. Convert to Base64
-        return new Promise((resolve, reject) => {
+        // Convert to Base64 for the email modal & sync
+        const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 if (reader.result) {
@@ -93,9 +123,29 @@ export async function generateAndDownloadDevisPDF(
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+
+        // Cleanup Yoga memory leak
+        asPdf.updateContainer(createElement(Document, {} as any));
+
+        return base64;
     } catch (e) {
         console.error("Erreur dans generateAndDownloadDevisPDF", e);
         throw e;
     }
+}
+
+function triggerStandardDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 500); // 500ms safer for heavy blobs
 }
 

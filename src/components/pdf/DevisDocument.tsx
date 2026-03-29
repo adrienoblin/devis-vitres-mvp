@@ -432,9 +432,6 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                         }
 
                         let displayUnitPrice = pU.toFixed(2) + " €";
-                        if (row.isTravel && config.travel?.pricePerKm) {
-                            displayUnitPrice = config.travel.pricePerKm.toFixed(2) + " €";
-                        }
 
                         return (
                             <View style={styles.tableRow} key={`row-${index}`}>

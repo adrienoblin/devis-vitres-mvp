@@ -95,9 +95,10 @@ interface PricingConfigParams {
 }
 
 export function calculateWindowPrice(item: Omit<WindowItem, 'id'>, config: PricingConfigParams): number {
-    if (item.type === 'autre' && item.prixManuel !== undefined) {
+    if (item.prixManuel !== undefined && item.prixManuel !== null) {
         return item.prixManuel * item.quantity;
     }
+
     let basePrice = 0;
     if (config.windowTypes) {
         const wt = config.windowTypes.find(w => w.id === item.type);
@@ -110,11 +111,6 @@ export function calculateWindowPrice(item: Omit<WindowItem, 'id'>, config: Prici
     const sizeMult = config.multipliers.size[item.size] || 1;
     const heightMult = config.multipliers.height[item.height] || 1;
     const dirtMult = config.multipliers.dirtiness[item.dirtiness] || 1;
-
-    // Frais de déplacement doesn't have multipliers
-    if (item.isFraisDeplacement) {
-        return item.prixManuel || 0; // Already calculated
-    }
 
     return basePrice * sizeMult * heightMult * dirtMult * item.quantity;
 }

@@ -214,15 +214,29 @@ export default function NouveauDevisPage() {
   const selectedClientAddress = clients.find(c => c.id === selectedClientId)?.address || '';
 
   const addTravelToDevis = (km: number, pricePerKm: number) => {
-    setWindows([...windows, {
-      id: uuidv4(),
-      type: 'autre',
-      size: 'moyenne', height: 'homme', dirtiness: 'legere',
-      quantity: Math.ceil(km * 2),
-      description: `Déplacement`,
-      prixManuel: pricePerKm,
-      isFraisDeplacement: true
-    }]);
+    const rawTotal = Math.ceil(km * 2) * pricePerKm;
+    
+    if (rawTotal < 20) {
+      setWindows([...windows, {
+        id: uuidv4(),
+        type: 'autre',
+        size: 'moyenne', height: 'homme', dirtiness: 'legere',
+        quantity: 1,
+        description: `Frais de déplacement (Forfait minimum)`,
+        prixManuel: 20,
+        isFraisDeplacement: true
+      }]);
+    } else {
+      setWindows([...windows, {
+        id: uuidv4(),
+        type: 'autre',
+        size: 'moyenne', height: 'homme', dirtiness: 'legere',
+        quantity: Math.ceil(km * 2),
+        description: `Frais de déplacement`,
+        prixManuel: pricePerKm,
+        isFraisDeplacement: true
+      }]);
+    }
     setShowTravelCalc(false);
   };
 
@@ -391,6 +405,22 @@ export default function NouveauDevisPage() {
               onChange={(e) => updateCard(w.id, { note: e.target.value })}
               placeholder="Ex: Difficile d'accès"
               className="w-full text-sm p-2.5 rounded-lg border border-slate-300 bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
+            />
+          </div>
+
+          <div className="w-full sm:w-[130px] flex flex-col gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide" title="Prix unitaire personnalisé, ignore les multiplicateurs">Prix U. Libre</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              placeholder="Auto"
+              value={w.prixManuel !== undefined ? w.prixManuel : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateCard(w.id, { prixManuel: val === '' ? undefined : parseFloat(val) });
+              }}
+              className="w-full text-center h-11 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800 bg-white placeholder:text-slate-400 placeholder:font-normal shadow-sm"
             />
           </div>
 
