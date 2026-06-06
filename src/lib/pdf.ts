@@ -93,28 +93,7 @@ export async function generateAndDownloadDevisPDF(
         const formattedDateId = format(new Date(devis.date), 'yyyyMMdd');
         const filename = `devis-${formattedDateId}-${devis.id.substring(0, 4)}.pdf`;
 
-        // Native share on mobile (PWA safe)
-        if (typeof navigator !== 'undefined' && navigator.share) {
-            try {
-                const file = new File([blob], filename, { type: 'application/pdf' });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: `Devis Wash Up`,
-                    });
-                } else {
-                    triggerStandardDownload(blob, filename);
-                }
-            } catch (err: any) {
-                // AbortError = user dismissed the share sheet, not a real error
-                if (err?.name !== 'AbortError') {
-                    console.warn("Share failed, falling back to download", err);
-                    triggerStandardDownload(blob, filename);
-                }
-            }
-        } else {
-            triggerStandardDownload(blob, filename);
-        }
+        // Only generate Base64 here, no native share or download.
 
         // Convert to Base64 for the email modal & sync
         const base64 = await new Promise<string>((resolve, reject) => {

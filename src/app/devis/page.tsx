@@ -330,17 +330,11 @@ function NouveauDevisPageContent() {
       try {
         pdfBase64 = await generateAndDownloadDevisPDF(newDevis, selectedClient, config);
       } catch (pdfError: any) {
-        // AbortError means user dismissed share sheet — not a real error
-        if (pdfError?.name === 'AbortError') {
-          // Quote is saved, just proceed without PDF
-        } else {
-          console.error('PDF generation error:', pdfError);
-          toast.error("Le devis a été enregistré mais la génération du PDF a échoué.");
-          // Still navigate away since the quote IS saved
-          toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
-          router.push('/historique');
-          return;
-        }
+        console.error('PDF generation error:', pdfError);
+        toast.error("Le devis a été enregistré mais la génération du PDF a échoué.");
+        toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
+        router.push('/historique');
+        return;
       }
 
       if (config.hubspot.token && selectedClientId && pdfBase64) {
