@@ -124,7 +124,7 @@ export async function previewDevisPDF(
     // Open window synchronously to avoid popup blockers
     const previewWindow = window.open('', '_blank');
     if (previewWindow) {
-        previewWindow.document.write('<div style="font-family:sans-serif;padding:20px;text-align:center;">Génération de l\\'aperçu en cours...</div>');
+        previewWindow.document.write(`<div style="font-family:sans-serif;padding:20px;text-align:center;">Génération de l'aperçu en cours...</div>`);
     }
 
     try {
