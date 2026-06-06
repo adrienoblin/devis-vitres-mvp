@@ -105,22 +105,18 @@ function NouveauDevisPageContent() {
         }
         
         setSelectedClientId(devisToEdit.clientId || '');
-        // For duplicate mode, regenerate IDs to ensure no key collisions if needed, though not strictly required
-        setWindows(devisToEdit.items?.map(w => ({...w, id: duplicateId ? uuidv4() : w.id})) || []);
+        // We can use the same items/categories since they will be saved as part of a new Devis object.
+        setWindows(devisToEdit.items || []);
         setDiscount(devisToEdit.discount || 0);
         setNotes(devisToEdit.notes || '');
         const existingGlobal = devisToEdit.globalDesignation || '';
         setGlobalDesignation(existingGlobal);
-        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, id: duplicateId ? uuidv4() : t.id, price: t.price.toString() })) || [];
+        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
         if (devisToEdit.extraTaskDescription) {
           loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
         }
         setExtraTasks(loadedExtraTasks);
-        setCategories(devisToEdit.categories?.map(c => ({
-            ...c, 
-            id: duplicateId ? uuidv4() : c.id, 
-            items: c.items.map(w => ({...w, id: duplicateId ? uuidv4() : w.id}))
-        })) || []);
+        setCategories(devisToEdit.categories || []);
         
         setShowEmailModal(null);
         setIsGenerating(false);
