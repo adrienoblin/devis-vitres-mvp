@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
-import { generateAndDownloadDevisPDF } from '@/lib/pdf';
+import { generateAndDownloadDevisPDF, previewDevisPDF, downloadDevisPDF } from '@/lib/pdf';
 import { EmailModal } from '@/components/EmailModal';
 import {
   Plus,
@@ -17,7 +17,9 @@ import {
   MapPin,
   Loader2,
   Navigation,
-  Copy
+  Copy,
+  Eye,
+  Share2
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SignaturePad, { SignaturePadRef } from '@/components/SignaturePad';
@@ -284,7 +286,7 @@ function NouveauDevisPageContent() {
     return subTotal - discountAmount;
   }, [subTotal, discountAmount]);
 
-  const generateAndSaveDevis = async () => {
+  const handleGenerateDevis = async (action: 'generate' | 'preview' | 'share') => {
     if (windows.length === 0) {
       toast.error("Ajoutez d'abord des prestations au devis.");
       return;
@@ -326,6 +328,28 @@ function NouveauDevisPageContent() {
 
       const selectedClient = clients.find(c => c.id === selectedClientId);
       
+      if (action === 'preview') {
+        try {
+          await previewDevisPDF(newDevis, selectedClient, config);
+          toast.success("Aperçu généré (le devis a été enregistré en brouillon)");
+        } catch (e) {
+          toast.error("Erreur lors de l'aperçu");
+        }
+        return;
+      }
+
+      if (action === 'share') {
+        try {
+          await downloadDevisPDF(newDevis, selectedClient, config);
+          toast.success(existingDevisId ? "Devis modifié et partagé !" : "Devis créé et partagé !");
+          router.push('/historique');
+        } catch (e) {
+          toast.error("Erreur lors du partage");
+        }
+        return;
+      }
+
+      // Generate action (Email Modal)
       let pdfBase64 = '';
       try {
         pdfBase64 = await generateAndDownloadDevisPDF(newDevis, selectedClient, config);
@@ -765,9 +789,18 @@ function NouveauDevisPageContent() {
 
         {/* ACTIONS */}
         <div className="pt-2 pb-8 flex flex-col gap-3">
-          <Button onClick={generateAndSaveDevis} disabled={isGenerating} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
+          <Button onClick={() => handleGenerateDevis('preview')} disabled={isGenerating} className="w-full h-14 text-lg bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold shadow-sm flex items-center justify-center gap-2">
+            <Eye className="h-6 w-6" /> Aperçu du devis
+          </Button>
+
+          <Button onClick={() => handleGenerateDevis('generate')} disabled={isGenerating} className="w-full h-14 text-lg bg-blue-800 hover:bg-blue-900 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">
             {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Download className="h-6 w-6" />}
-            {existingDevisId ? 'Enregistrer et Générer' : 'Générer le Devis Client'}
+            {existingDevisId ? 'Enregistrer et Envoyer' : 'Générer et Envoyer'}
+          </Button>
+
+          <Button onClick={() => handleGenerateDevis('share')} disabled={isGenerating} className="w-full h-14 text-lg bg-[#25D366] hover:bg-[#1DA851] text-white rounded-xl font-bold shadow-md flex items-center justify-center gap-2">
+             {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Share2 className="h-6 w-6" />}
+             Partager (WhatsApp, Télécharger...)
           </Button>
 
           <button 

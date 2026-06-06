@@ -116,6 +116,38 @@ export async function generateAndDownloadDevisPDF(
     }
 }
 
+export async function previewDevisPDF(
+    devis: DevisData,
+    client: ClientData | undefined,
+    config: PricingConfig
+): Promise<void> {
+    // Open window synchronously to avoid popup blockers
+    const previewWindow = window.open('', '_blank');
+    if (previewWindow) {
+        previewWindow.document.write('<div style="font-family:sans-serif;padding:20px;text-align:center;">Génération de l\\'aperçu en cours...</div>');
+    }
+
+    try {
+        const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
+        const blob = await asPdf.toBlob();
+        const url = URL.createObjectURL(blob);
+        
+        if (previewWindow) {
+            previewWindow.location.href = url;
+        } else {
+            // Fallback if blocked
+            window.open(url, '_blank') || (window.location.href = url);
+        }
+
+        // Cleanup
+        asPdf.updateContainer(createElement(Document, {} as any));
+    } catch (e) {
+        if (previewWindow) previewWindow.close();
+        console.error("Erreur lors de l'aperçu", e);
+        throw e;
+    }
+}
+
 function triggerStandardDownload(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

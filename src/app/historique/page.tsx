@@ -8,8 +8,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { EmailModal } from '@/components/EmailModal';
 import { DevisData } from '@/lib/store';
-import { generateDevisPDF, downloadDevisPDF } from '@/lib/pdf';
-import { Loader2 } from 'lucide-react';
+import { previewDevisPDF, downloadDevisPDF, generateDevisPDF } from '@/lib/pdf';
+import { Loader2, Eye, Share2 } from 'lucide-react';
 
 export default function HistoriquePage() {
     const { devisHistory, clients, updateDevis, deleteDevis, config } = useAppStore();
@@ -34,6 +34,18 @@ export default function HistoriquePage() {
         try {
             const client = clients.find(c => c.id === devis.clientId);
             await downloadDevisPDF(devis, client, config);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setGeneratingId(null);
+        }
+    };
+
+    const handlePreviewClick = async (devis: DevisData) => {
+        setGeneratingId(devis.id);
+        try {
+            const client = clients.find(c => c.id === devis.clientId);
+            await previewDevisPDF(devis, client, config);
         } catch (e) {
             console.error(e);
         } finally {
@@ -111,13 +123,30 @@ export default function HistoriquePage() {
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
-                                    <div className="mt-2 text-right">
+                                    <div className="mt-2 grid grid-cols-3 gap-2">
+                                        <button
+                                            onClick={() => handlePreviewClick(devis)}
+                                            disabled={generatingId === devis.id}
+                                            className="w-full text-slate-600 bg-slate-100 hover:bg-slate-200 flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            {(generatingId === devis.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                                            Aperçu
+                                        </button>
+                                        <button
+                                            onClick={() => handleDownloadClick(devis)}
+                                            disabled={generatingId === devis.id}
+                                            className="w-full text-slate-600 bg-slate-100 hover:bg-slate-200 flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            {(generatingId === devis.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                                            Partager
+                                        </button>
                                         <button
                                             onClick={() => handleEmailClick(devis)}
                                             disabled={generatingId === devis.id}
-                                            className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-colors"
+                                            className="w-full text-blue-600 bg-blue-50 hover:bg-blue-100 flex flex-col items-center justify-center gap-1 py-2 rounded-lg text-xs font-bold transition-colors"
                                         >
-                                            {(generatingId === devis.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />} Envoyer par email
+                                            {(generatingId === devis.id) ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
+                                            Email
                                         </button>
                                     </div>
                                 </div>
