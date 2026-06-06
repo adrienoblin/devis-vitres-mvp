@@ -12,7 +12,7 @@ export default function ParamsPage() {
     const [localConfig, setLocalConfig] = useState(config);
     const [saved, setSaved] = useState(false);
     const [isClient, setIsClient] = useState(false);
-    const [activeTab, setActiveTab] = useState<'general' | 'prestations' | 'pdf' | 'integrations'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'prestations' | 'pdf' | 'integrations' | 'sauvegarde'>('general');
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const importFileRef = useRef<HTMLInputElement>(null);
@@ -215,6 +215,12 @@ export default function ParamsPage() {
                         className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'integrations' ? 'bg-white text-blue-900' : 'text-blue-200 hover:bg-blue-800'}`}
                     >
                         Intégrations
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('sauvegarde')}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'sauvegarde' ? 'bg-white text-blue-900' : 'text-blue-200 hover:bg-blue-800'}`}
+                    >
+                        🛡️ Sauvegarde
                     </button>
                 </div>
             </header>
@@ -642,8 +648,89 @@ export default function ParamsPage() {
                     </div>
                 )}
 
+                {/* ONGLET SAUVEGARDE */}
+                {activeTab === 'sauvegarde' && (
+                    <div className="space-y-5 animate-in fade-in duration-200">
 
-                {/* FIXED BOTOM ACTIONS */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <p className="text-sm text-blue-800 font-medium">💾 Toutes vos données sont stockées sur votre téléphone. Exportez-les régulièrement pour ne jamais en perdre.</p>
+                        </div>
+
+                        {/* EXPORT */}
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-1">
+                                <Download className="h-5 w-5 text-green-600" />
+                                Exporter mes données
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-4">Télécharge un fichier contenant tous vos clients, devis, paramètres et CGV. À conserver précieusement !</p>
+                            <button
+                                onClick={handleExportData}
+                                className="w-full flex items-center justify-center gap-3 p-4 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-xl font-bold transition-colors text-base shadow-md"
+                            >
+                                <Download className="h-5 w-5" />
+                                Télécharger la sauvegarde
+                            </button>
+                        </section>
+
+                        {/* IMPORT */}
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-1">
+                                <Upload className="h-5 w-5 text-amber-600" />
+                                Restaurer une sauvegarde
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-1">Sélectionnez un fichier de sauvegarde (.json) précédemment exporté.</p>
+                            <p className="text-sm text-red-500 font-medium mb-4">⚠️ Attention : ceci remplacera toutes vos données actuelles.</p>
+
+                            <input
+                                ref={importFileRef}
+                                type="file"
+                                accept=".json"
+                                onChange={handleImportData}
+                                className="hidden"
+                                id="import-backup-file"
+                            />
+                            <button
+                                onClick={() => importFileRef.current?.click()}
+                                className="w-full flex items-center justify-center gap-3 p-4 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl font-bold transition-colors text-base shadow-md"
+                            >
+                                <Upload className="h-5 w-5" />
+                                Choisir un fichier de restauration
+                            </button>
+
+                            {importStatus === 'success' && (
+                                <div className="flex items-center gap-2 p-3 mt-3 bg-green-50 border border-green-200 rounded-lg">
+                                    <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                    <p className="text-sm text-green-700 font-medium">Données restaurées avec succès ! Rechargement en cours...</p>
+                                </div>
+                            )}
+                            {importStatus === 'error' && (
+                                <div className="flex items-center gap-2 p-3 mt-3 bg-red-50 border border-red-200 rounded-lg">
+                                    <p className="text-sm text-red-700 font-medium">❌ Fichier invalide. Vérifiez qu'il s'agit bien d'une sauvegarde Wash Up Corp.</p>
+                                </div>
+                            )}
+                        </section>
+
+                        {/* RESET */}
+                        <section className="bg-white rounded-xl shadow-sm border border-red-100 p-5">
+                            <h2 className="text-lg font-bold text-red-700 flex items-center gap-2 mb-1">
+                                <Trash2 className="h-5 w-5" />
+                                Zone de danger
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-4">Efface définitivement toutes vos données. Action irréversible.</p>
+                            <button
+                                onClick={handleResetApp}
+                                className="w-full flex items-center justify-center gap-2 p-3 border-2 border-red-300 text-red-600 rounded-xl font-bold hover:bg-red-50 transition-colors"
+                            >
+                                <Trash2 className="h-4 w-4" /> Réinitialiser toutes les données
+                            </button>
+                        </section>
+
+                    </div>
+                )}
+
+
+                {/* FIXED BOTTOM ACTIONS — masqué sur l'onglet sauvegarde */}
+                {activeTab !== 'sauvegarde' && (
                 <div className="fixed bottom-16 left-0 right-0 p-4 pb-6 bg-white border-t border-slate-200 z-40">
                     <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
                         <Button
@@ -662,6 +749,7 @@ export default function ParamsPage() {
                         </Button>
                     </div>
                 </div>
+                )}
             </main>
         </div>
     );
