@@ -83,9 +83,6 @@ export async function generateAndDownloadDevisPDF(
     client: ClientData | undefined,
     config: PricingConfig
 ): Promise<string> {
-    const ReactPdf = await import('@react-pdf/renderer');
-    const { pdf, Document } = ReactPdf;
-
     try {
         const asPdf = pdf(createElement(DevisDocument, { devis, client, config }) as any);
         const blob = await asPdf.toBlob();

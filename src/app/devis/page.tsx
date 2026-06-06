@@ -352,9 +352,9 @@ function NouveauDevisPageContent() {
       } else {
         router.push('/historique');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Erreur lors de la génération du devis PDF");
+      toast.error(`Erreur: ${e.message || "Génération du devis"}`);
     } finally {
       setIsGenerating(false);
     }
