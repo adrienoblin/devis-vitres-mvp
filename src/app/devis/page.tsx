@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { generateAndDownloadDevisPDF } from '@/lib/pdf';
 import { EmailModal } from '@/components/EmailModal';
@@ -19,7 +19,7 @@ import {
   Navigation,
   Copy
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import SignaturePad, { SignaturePadRef } from '@/components/SignaturePad';
 import { processOfflineTasks } from '@/lib/hubspot';
 import { toast } from 'react-hot-toast';
@@ -38,8 +38,9 @@ import { useAppStore, DevisData, DevisCategory } from '@/lib/store';
 import { Button } from '@/components/ui/Button';
 import { v4 as uuidv4 } from 'uuid';
 
-export default function NouveauDevisPage() {
+function NouveauDevisPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { config, clients, addDevis, devisHistory, updateDevis, currentDraft, updateCurrentDraft, clearCurrentDraft } = useAppStore();
   const [existingDevisId, setExistingDevisId] = useState<string | null>(null);
 
@@ -61,95 +62,124 @@ export default function NouveauDevisPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Stable reset function — clears ALL local state to blank
+  const resetForm = useCallback(() => {
+    setExistingDevisId(null);
+    setSelectedClientId('');
+    setCategories([]);
+    setWindows([]);
+    setDiscount(0);
+    setNotes('');
+    setGlobalDesignation('');
+    setIsCustomDesignation(false);
+    setCustomCategoryDesignations({});
+    setCustomCategoryNames({});
+    setExtraTasks([]);
+    setShowEmailModal(null);
+    setIsGenerating(false);
+    signaturePadRef.current?.clear?.();
+  }, []);
+
+  // React to URL changes: runs every time searchParams changes.
+  // This handles the case where the Next.js PWA reuses the component
+  // (no remount) when navigating /devis -> /historique -> /devis.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const u = new URLSearchParams(window.location.search);
-      const cId = u.get('client');
-      if (cId) setSelectedClientId(cId);
+    if (typeof window === 'undefined') return;
 
-      const editId = u.get('edit');
-      if (editId) {
+    const editId = searchParams.get('edit');
+    const clientId = searchParams.get('client');
+
+    if (editId) {
+      // --- EDIT MODE ---
+      const devisToEdit = useAppStore.getState().devisHistory.find(d => d.id === editId);
+      if (devisToEdit) {
         setExistingDevisId(editId);
-        const devisToEdit = useAppStore.getState().devisHistory.find(d => d.id === editId);
-        if (devisToEdit) {
-          if (devisToEdit.clientId) setSelectedClientId(devisToEdit.clientId);
-          setWindows(devisToEdit.items || []);
-          setDiscount(devisToEdit.discount || 0);
-          setNotes(devisToEdit.notes || '');
-          const existingGlobal = devisToEdit.globalDesignation || '';
-          setGlobalDesignation(existingGlobal);
-          const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
-          if (devisToEdit.extraTaskDescription) {
-            loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
-          }
-          setExtraTasks(loadedExtraTasks);
-          setCategories(devisToEdit.categories || []);
+        setSelectedClientId(devisToEdit.clientId || '');
+        setWindows(devisToEdit.items || []);
+        setDiscount(devisToEdit.discount || 0);
+        setNotes(devisToEdit.notes || '');
+        const existingGlobal = devisToEdit.globalDesignation || '';
+        setGlobalDesignation(existingGlobal);
+        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
+        if (devisToEdit.extraTaskDescription) {
+          loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
+        }
+        setExtraTasks(loadedExtraTasks);
+        setCategories(devisToEdit.categories || []);
+        setShowEmailModal(null);
+        setIsGenerating(false);
 
-          if (existingGlobal) {
+        if (existingGlobal) {
+          const { config: currentConfig } = useAppStore.getState();
+          const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === existingGlobal);
+          setIsCustomDesignation(!isMatch);
+        } else {
+          setIsCustomDesignation(false);
+        }
+
+        const initialCustomCats: Record<string, boolean> = {};
+        const initialCustomNames: Record<string, boolean> = {};
+        (devisToEdit.categories || []).forEach(c => {
+          if (c.globalDesignation) {
             const { config: currentConfig } = useAppStore.getState();
-            const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === existingGlobal);
-            if (!isMatch) setIsCustomDesignation(true);
+            const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
+            if (!isMatch) initialCustomCats[c.id] = true;
           }
-          
+          if (c.name) {
+            const { config: currentConfig } = useAppStore.getState();
+            const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
+            if (!isMatch) initialCustomNames[c.id] = true;
+          }
+        });
+        setCustomCategoryDesignations(initialCustomCats);
+        setCustomCategoryNames(initialCustomNames);
+      }
+    } else {
+      // --- NEW QUOTE MODE ---
+      // Reset everything first so old state never leaks into a new quote
+      resetForm();
+
+      // Pre-fill client if provided in URL
+      if (clientId) setSelectedClientId(clientId);
+
+      // Then restore draft if one exists (but only if it's truly a draft, not a finished quote)
+      const draft = useAppStore.getState().currentDraft;
+      if (draft && !clientId) {
+        if (draft.clientId) setSelectedClientId(draft.clientId);
+        if (draft.items) setWindows(draft.items);
+        if (draft.discount !== undefined) setDiscount(draft.discount);
+        if (draft.notes) setNotes(draft.notes);
+        if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
+        if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString() })));
+        if (draft.categories) {
+          setCategories(draft.categories);
           const initialCustomCats: Record<string, boolean> = {};
           const initialCustomNames: Record<string, boolean> = {};
-          (devisToEdit.categories || []).forEach(c => {
+          draft.categories.forEach(c => {
             if (c.globalDesignation) {
-               const { config: currentConfig } = useAppStore.getState();
-               const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
-               if (!isMatch) initialCustomCats[c.id] = true;
+              const { config: currentConfig } = useAppStore.getState();
+              const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
+              if (!isMatch) initialCustomCats[c.id] = true;
             }
             if (c.name) {
-               const { config: currentConfig } = useAppStore.getState();
-               const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
-               if (!isMatch) initialCustomNames[c.id] = true;
+              const { config: currentConfig } = useAppStore.getState();
+              const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
+              if (!isMatch) initialCustomNames[c.id] = true;
             }
           });
           setCustomCategoryDesignations(initialCustomCats);
           setCustomCategoryNames(initialCustomNames);
         }
-      } else {
-        // Resume from draft if it exists
-        const draft = useAppStore.getState().currentDraft;
-        if (draft) {
-          if (draft.clientId) setSelectedClientId(draft.clientId);
-          if (draft.items) setWindows(draft.items);
-          if (draft.discount !== undefined) setDiscount(draft.discount);
-          if (draft.notes) setNotes(draft.notes);
-          if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
-          if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString() })));
-          if (draft.categories) {
-             setCategories(draft.categories);
-             const initialCustomCats: Record<string, boolean> = {};
-             const initialCustomNames: Record<string, boolean> = {};
-             draft.categories.forEach(c => {
-               if (c.globalDesignation) {
-                 const { config: currentConfig } = useAppStore.getState();
-                 const isMatch = currentConfig.globalDesignations?.some(gd => gd.label === c.globalDesignation);
-                 if (!isMatch) initialCustomCats[c.id] = true;
-               }
-               if (c.name) {
-                 const { config: currentConfig } = useAppStore.getState();
-                 const isMatch = currentConfig.sectionTemplates?.some(st => st.name === c.name);
-                 if (!isMatch) initialCustomNames[c.id] = true;
-               }
-             });
-             setCustomCategoryDesignations(initialCustomCats);
-             setCustomCategoryNames(initialCustomNames);
-          }
-        }
       }
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Auto-save effect
   useEffect(() => {
-    // We only auto-save if we are NOT editing an explicitly saved finalized quote.
-    // If we want to auto-save edits too, we can, but it might overwrite the original edit before saving.
-    // Let's only auto-save new devis creations for now to be safe, or we can save state indiscriminately since draft is separate.
+    // Only auto-save new (non-edit) quotes
     if (!existingDevisId) {
       const timer = setTimeout(() => {
-        // Only save if there's actually something entered to avoid blank drafts overriding history
         if (windows.length > 0 || selectedClientId || notes || extraTasks.length > 0 || categories.length > 0) {
           updateCurrentDraft({
             clientId: selectedClientId || undefined,
@@ -282,29 +312,50 @@ export default function NouveauDevisPage() {
         extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), price: parseFloat(t.price) || 0 })),
       };
 
+      // CRITICAL: Save to store FIRST before any async PDF operation.
+      // This ensures the quote is never lost even if PDF generation fails.
       if (existingDevisId) {
         updateDevis(existingDevisId, newDevis);
       } else {
         addDevis(newDevis);
-        clearCurrentDraft(); // Clear draft on successful creation
+        // Set existingDevisId immediately to stop the auto-save from
+        // re-creating a draft and polluting state for the next quote.
+        setExistingDevisId(newDevis.id);
+        clearCurrentDraft();
       }
 
       const selectedClient = clients.find(c => c.id === selectedClientId);
-      const pdfBase64 = await generateAndDownloadDevisPDF(newDevis, selectedClient, config);
+      
+      let pdfBase64 = '';
+      try {
+        pdfBase64 = await generateAndDownloadDevisPDF(newDevis, selectedClient, config);
+      } catch (pdfError: any) {
+        // AbortError means user dismissed share sheet — not a real error
+        if (pdfError?.name === 'AbortError') {
+          // Quote is saved, just proceed without PDF
+        } else {
+          console.error('PDF generation error:', pdfError);
+          toast.error("Le devis a été enregistré mais la génération du PDF a échoué.");
+          // Still navigate away since the quote IS saved
+          toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
+          router.push('/historique');
+          return;
+        }
+      }
 
-      if (config.hubspot.token && selectedClientId) {
+      if (config.hubspot.token && selectedClientId && pdfBase64) {
         useAppStore.getState().addOfflineTask({
           id: uuidv4(), type: 'UPLOAD_QUOTE', payload: { clientId: selectedClientId, date: newDevis.date, totalHT, pdfBase64 }, createdAt: new Date().toISOString()
         });
         processOfflineTasks();
       }
 
-      if (selectedClientId && selectedClientId !== 'passage') {
+      toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
+
+      if (selectedClientId && selectedClientId !== 'passage' && pdfBase64) {
         setShowEmailModal({ devis: newDevis, base64: pdfBase64 });
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
       } else {
-        toast.success(existingDevisId ? "Devis modifié avec succès!" : "Devis créé avec succès !");
         router.push('/historique');
       }
     } catch (e) {
@@ -749,5 +800,13 @@ export default function NouveauDevisPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function NouveauDevisPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-800"></div></div>}>
+      <NouveauDevisPageContent />
+    </React.Suspense>
   );
 }

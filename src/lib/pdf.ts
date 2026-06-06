@@ -57,11 +57,14 @@ export async function downloadDevisPDF(
                         title: `Devis Wash Up`,
                     });
                 } else {
-                    throw new Error("Cannot share");
+                    triggerStandardDownload(blob, filename);
                 }
-            } catch (err) {
-                console.warn("Share failed, falling back to download", err);
-                triggerStandardDownload(blob, filename);
+            } catch (err: any) {
+                // AbortError = user dismissed the share sheet, not a real error
+                if (err?.name !== 'AbortError') {
+                    console.warn("Share failed, falling back to download", err);
+                    triggerStandardDownload(blob, filename);
+                }
             }
         } else {
             triggerStandardDownload(blob, filename);
@@ -100,11 +103,14 @@ export async function generateAndDownloadDevisPDF(
                         title: `Devis Wash Up`,
                     });
                 } else {
-                    throw new Error("Cannot share files on this device");
+                    triggerStandardDownload(blob, filename);
                 }
-            } catch (err) {
-                console.warn("Share failed, falling back to download", err);
-                triggerStandardDownload(blob, filename);
+            } catch (err: any) {
+                // AbortError = user dismissed the share sheet, not a real error
+                if (err?.name !== 'AbortError') {
+                    console.warn("Share failed, falling back to download", err);
+                    triggerStandardDownload(blob, filename);
+                }
             }
         } else {
             triggerStandardDownload(blob, filename);

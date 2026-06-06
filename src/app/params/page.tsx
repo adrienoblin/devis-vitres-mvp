@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { LABELS, WindowType, Size, Height, Dirtiness } from '@/lib/types';
-import { Settings, Save, Building2, FileText, CheckCircle2, Cloud, Mail, Trash2 } from 'lucide-react';
+import { Settings, Save, Building2, FileText, CheckCircle2, Cloud, Mail, Trash2, Download, Upload, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { removeWhiteBackground } from '@/lib/imageUtils';
 
@@ -14,6 +14,8 @@ export default function ParamsPage() {
     const [isClient, setIsClient] = useState(false);
     const [activeTab, setActiveTab] = useState<'general' | 'prestations' | 'pdf' | 'integrations'>('general');
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const importFileRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setLocalConfig(config);
@@ -30,9 +32,56 @@ export default function ParamsPage() {
 
     const handleResetApp = () => {
         if (window.confirm("Êtes-vous sûr de vouloir tout réinitialiser ? Toutes les données (devis, clients, paramètres) seront perdues.")) {
-            localStorage.clear(); // Clear all local storage
-            window.location.href = '/'; // Reload the app
+            localStorage.clear();
+            window.location.href = '/';
         }
+    };
+
+    const handleExportData = () => {
+        try {
+            const data = localStorage.getItem('prodevis-storage');
+            if (!data) {
+                alert('Aucune donnée à exporter.');
+                return;
+            }
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const date = new Date().toISOString().slice(0, 10);
+            a.download = `washup-sauvegarde-${date}.json`;
+            a.href = url;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 500);
+        } catch (e) {
+            console.error('Export error:', e);
+            alert('Erreur lors de l\'export.');
+        }
+    };
+
+    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const raw = ev.target?.result as string;
+                // Validate it's valid JSON with our key
+                JSON.parse(raw);
+                if (window.confirm('⚠️ Ceci va remplacer TOUTES vos données actuelles par celles du fichier de sauvegarde. Êtes-vous sûr ?')) {
+                    localStorage.setItem('prodevis-storage', raw);
+                    setImportStatus('success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+            } catch {
+                setImportStatus('error');
+                setTimeout(() => setImportStatus('idle'), 3000);
+            }
+        };
+        reader.readAsText(file);
+        // Reset input so same file can be selected again
+        e.target.value = '';
     };
 
     const handleAddWindowType = () => {
@@ -529,8 +578,70 @@ export default function ParamsPage() {
                                 className="w-full rounded-lg border-slate-300 border p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-y"
                             />
                         </section>
+
+                        {/* SAUVEGARDE & RESTAURATION */}
+                        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-1">
+                                <ShieldCheck className="h-5 w-5 text-green-600" />
+                                Sauvegarde &amp; Restauration
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-4">Exportez toutes vos données (clients, devis, paramètres) dans un fichier de sauvegarde, ou restaurez depuis un fichier existant.</p>
+
+                            <div className="space-y-3">
+                                {/* EXPORT */}
+                                <button
+                                    onClick={handleExportData}
+                                    className="w-full flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 transition-colors text-left"
+                                >
+                                    <div className="bg-green-100 p-2 rounded-lg">
+                                        <Download className="h-5 w-5 text-green-700" />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-green-800 text-sm">Exporter mes données</p>
+                                        <p className="text-xs text-green-600">Télécharge un fichier JSON avec tous vos clients, devis et paramètres</p>
+                                    </div>
+                                </button>
+
+                                {/* IMPORT */}
+                                <div>
+                                    <input
+                                        ref={importFileRef}
+                                        type="file"
+                                        accept=".json"
+                                        onChange={handleImportData}
+                                        className="hidden"
+                                        id="import-backup-file"
+                                    />
+                                    <button
+                                        onClick={() => importFileRef.current?.click()}
+                                        className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors text-left"
+                                    >
+                                        <div className="bg-amber-100 p-2 rounded-lg">
+                                            <Upload className="h-5 w-5 text-amber-700" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-amber-800 text-sm">Restaurer une sauvegarde</p>
+                                            <p className="text-xs text-amber-600">⚠️ Remplace toutes les données actuelles par celles du fichier</p>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                {importStatus === 'success' && (
+                                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                        <p className="text-sm text-green-700 font-medium">Données restaurées ! Rechargement en cours...</p>
+                                    </div>
+                                )}
+                                {importStatus === 'error' && (
+                                    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-sm text-red-700 font-medium">❌ Fichier invalide. Vérifiez qu'il s'agit bien d'une sauvegarde Wash Up.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
                     </div>
                 )}
+
 
                 {/* FIXED BOTOM ACTIONS */}
                 <div className="fixed bottom-16 left-0 right-0 p-4 pb-6 bg-white border-t border-slate-200 z-40">

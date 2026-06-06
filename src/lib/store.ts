@@ -256,6 +256,8 @@ export const useAppStore = create<AppState>()(
                         ...p.config,
                         windowTypes: p.config.windowTypes || currentState.config.windowTypes,
                         travel: p.config.travel || currentState.config.travel,
+                        globalDesignations: p.config.globalDesignations || currentState.config.globalDesignations,
+                        sectionTemplates: p.config.sectionTemplates || currentState.config.sectionTemplates,
                     }
                 };
             }
