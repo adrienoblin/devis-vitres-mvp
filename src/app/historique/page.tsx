@@ -1,7 +1,7 @@
 'use client';
 
 import { useAppStore } from '@/lib/store';
-import { ClipboardList, Check, X, Trash2, FileText, MailCheck, PenTool } from 'lucide-react';
+import { ClipboardList, Check, X, Trash2, FileText, MailCheck, PenTool, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -109,8 +109,16 @@ export default function HistoriquePage() {
                                         <Link
                                             href={`/devis?edit=${devis.id}`}
                                             className="flex-none flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-bold bg-slate-100 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                                            title="Modifier"
                                         >
                                             <PenTool className="h-4 w-4" />
+                                        </Link>
+                                        <Link
+                                            href={`/devis?duplicate=${devis.id}`}
+                                            className="flex-none flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-bold bg-slate-100 text-purple-600 hover:bg-purple-600 hover:text-white transition-colors"
+                                            title="Dupliquer"
+                                        >
+                                            <Copy className="h-4 w-4" />
                                         </Link>
                                         <button
                                             onClick={() => {

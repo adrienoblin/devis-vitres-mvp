@@ -89,25 +89,39 @@ function NouveauDevisPageContent() {
     if (typeof window === 'undefined') return;
 
     const editId = searchParams.get('edit');
+    const duplicateId = searchParams.get('duplicate');
     const clientId = searchParams.get('client');
+    const targetDevisId = editId || duplicateId;
 
-    if (editId) {
-      // --- EDIT MODE ---
-      const devisToEdit = useAppStore.getState().devisHistory.find(d => d.id === editId);
+    if (targetDevisId) {
+      // --- EDIT OR DUPLICATE MODE ---
+      const devisToEdit = useAppStore.getState().devisHistory.find(d => d.id === targetDevisId);
       if (devisToEdit) {
-        setExistingDevisId(editId);
+        if (editId) {
+          setExistingDevisId(editId);
+        } else {
+          // duplicate mode
+          setExistingDevisId(null);
+        }
+        
         setSelectedClientId(devisToEdit.clientId || '');
-        setWindows(devisToEdit.items || []);
+        // For duplicate mode, regenerate IDs to ensure no key collisions if needed, though not strictly required
+        setWindows(devisToEdit.items?.map(w => ({...w, id: duplicateId ? uuidv4() : w.id})) || []);
         setDiscount(devisToEdit.discount || 0);
         setNotes(devisToEdit.notes || '');
         const existingGlobal = devisToEdit.globalDesignation || '';
         setGlobalDesignation(existingGlobal);
-        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
+        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, id: duplicateId ? uuidv4() : t.id, price: t.price.toString() })) || [];
         if (devisToEdit.extraTaskDescription) {
           loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
         }
         setExtraTasks(loadedExtraTasks);
-        setCategories(devisToEdit.categories || []);
+        setCategories(devisToEdit.categories?.map(c => ({
+            ...c, 
+            id: duplicateId ? uuidv4() : c.id, 
+            items: c.items.map(w => ({...w, id: duplicateId ? uuidv4() : w.id}))
+        })) || []);
+        
         setShowEmailModal(null);
         setIsGenerating(false);
 
