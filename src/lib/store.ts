@@ -244,6 +244,10 @@ export const useAppStore = create<AppState>()(
             // Changing this key ('prodevis-storage') to anything else will create a new empty local database
             // and cause the user to lose ALL their saved clients, history, settings, and CGV.
             name: 'prodevis-storage',
+            partialize: (state) => ({
+                ...state,
+                offlineTasks: [] // CRITICAL: Never persist offlineTasks. They contain massive Base64 PDFs that exceed localStorage 5MB quota.
+            }),
             merge: (persistedState: any, currentState: AppState) => {
                 const p = persistedState as AppState;
                 if (!p || !p.config) return { ...currentState, ...p };
