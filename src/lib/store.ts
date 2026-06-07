@@ -83,7 +83,7 @@ export interface DevisData {
     globalDesignation?: string;
     extraTaskDescription?: string; // deprecated
     extraTaskPrice?: number; // deprecated
-    extraTasks?: { id: string; description: string; price: number }[];
+    extraTasks?: { id: string; description: string; details?: string; price: number }[];
 }
 
 export interface OfflineTask {

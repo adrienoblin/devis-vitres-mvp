@@ -254,7 +254,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     const tva = totalHT * 0.21;
     const totalTTC = totalHT + tva;
 
-    const rows: { name: string, quantity?: number, total?: number, isTravel?: boolean, isCategoryTitle?: boolean }[] = [];
+    const rows: { name: string, details?: string, quantity?: number, total?: number, isTravel?: boolean, isCategoryTitle?: boolean }[] = [];
     const normalItems = devis.items.filter(i => !i.isFraisDeplacement);
 
     if (devis.globalDesignation) {
@@ -335,6 +335,7 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     allExtraTasks.forEach(task => {
         rows.push({
             name: task.description,
+            details: task.details,
             quantity: 1,
             total: task.price,
             isTravel: false
@@ -439,6 +440,11 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                                     <Text style={styles.tdDescriptionTitle}>
                                         {row.name}
                                     </Text>
+                                    {row.details && (
+                                        <Text style={{ fontSize: 8, color: '#64748b', marginTop: 3 }}>
+                                            {row.details}
+                                        </Text>
+                                    )}
                                 </View>
                                 <Text style={styles.tdQty}>{displayQuantity}</Text>
                                 <Text style={styles.tdPriceUnit}>{displayUnitPrice}</Text>

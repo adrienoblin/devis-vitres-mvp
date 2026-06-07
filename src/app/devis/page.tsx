@@ -57,7 +57,7 @@ function NouveauDevisPageContent() {
   const [isCustomDesignation, setIsCustomDesignation] = useState<boolean>(false);
   const [customCategoryDesignations, setCustomCategoryDesignations] = useState<Record<string, boolean>>({});
   const [customCategoryNames, setCustomCategoryNames] = useState<Record<string, boolean>>({});
-  const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, price: string }[]>([]);
+  const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, details?: string, price: string }[]>([]);
 
   const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
   const signaturePadRef = useRef<SignaturePadRef>(null);
@@ -111,7 +111,7 @@ function NouveauDevisPageContent() {
         setNotes(devisToEdit.notes || '');
         const existingGlobal = devisToEdit.globalDesignation || '';
         setGlobalDesignation(existingGlobal);
-        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString() })) || [];
+        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString(), details: t.details || '' })) || [];
         if (devisToEdit.extraTaskDescription) {
           loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
         }
@@ -162,7 +162,7 @@ function NouveauDevisPageContent() {
         if (draft.discount !== undefined) setDiscount(draft.discount);
         if (draft.notes) setNotes(draft.notes);
         if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
-        if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString() })));
+        if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString(), details: t.details || '' })));
         if (draft.categories) {
           setCategories(draft.categories);
           const initialCustomCats: Record<string, boolean> = {};
@@ -200,7 +200,7 @@ function NouveauDevisPageContent() {
             discount,
             notes,
             globalDesignation: globalDesignation.trim() || undefined,
-            extraTasks: extraTasks.filter(t => t.description.trim() !== '').map(t => ({ id: t.id, description: t.description.trim(), price: parseFloat(t.price) || 0 })),
+            extraTasks: extraTasks.filter(t => t.description.trim() !== '').map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0 })),
           });
         }
       }, 1000);
@@ -321,7 +321,7 @@ function NouveauDevisPageContent() {
         photos: [],
         needsSync: true,
         globalDesignation: globalDesignation.trim() || undefined,
-        extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), price: parseFloat(t.price) || 0 })),
+        extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0 })),
       };
 
       // CRITICAL: Save to store FIRST before any async PDF operation.
@@ -727,30 +727,44 @@ function NouveauDevisPageContent() {
             <div className="border-t border-slate-100 pt-4 space-y-4">
               <h3 className="text-sm font-medium text-slate-600">Prestations Supplémentaires (Optionnel)</h3>
               {extraTasks.map((task) => (
-                <div key={task.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 p-3 rounded-lg border border-slate-100 relative">
-                  <button onClick={() => setExtraTasks(prev => prev.filter(t => t.id !== task.id))} className="absolute top-2 right-2 text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs text-slate-500">Description</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Nettoyage structure métallique"
-                      value={task.description}
-                      onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, description: e.target.value } : t))}
-                      className="w-full rounded border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-500">Prix unitaire (HT)</label>
-                    <div className="relative">
+                <div key={task.id} className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 relative shadow-sm">
+                  <button onClick={() => setExtraTasks(prev => prev.filter(t => t.id !== task.id))} className="absolute top-3 right-3 text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-1 md:col-span-3">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Titre de la prestation</label>
                       <input
-                        type="number"
-                        placeholder="0.00"
-                        value={task.price}
-                        onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, price: e.target.value } : t))}
-                        className="w-full rounded border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none pr-8 text-sm"
+                        type="text"
+                        placeholder="Ex: Nettoyage de vos panneaux solaires"
+                        value={task.description}
+                        onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, description: e.target.value } : t))}
+                        className="w-full rounded-lg border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none text-sm font-medium"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">€</span>
                     </div>
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prix (HT)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={task.price}
+                          onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, price: e.target.value } : t))}
+                          className="w-full rounded-lg border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none pr-8 text-sm font-bold"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">€</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description détaillée</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Ex: Nettoyage via un procédé non-abrasif, à l'aide de perche en se branchant sur votre arrivée d'eau."
+                      value={task.details || ''}
+                      onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, details: e.target.value } : t))}
+                      className="w-full rounded-lg border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none text-sm resize-none"
+                    />
                   </div>
                 </div>
               ))}
