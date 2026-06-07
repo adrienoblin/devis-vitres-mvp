@@ -338,11 +338,19 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     }
 
     allExtraTasks.forEach(task => {
+        let finalPrice = task.price;
+        let originalTotal = undefined;
+        if (task.discountPrice !== undefined && task.discountPrice !== null && !isNaN(task.discountPrice)) {
+            finalPrice = task.discountPrice;
+            originalTotal = task.price;
+        }
+        
         rows.push({
             name: task.description,
             details: task.details,
             quantity: 1,
-            total: task.price,
+            total: finalPrice,
+            originalTotal: originalTotal,
             isTravel: false
         });
     });

@@ -57,7 +57,7 @@ function NouveauDevisPageContent() {
   const [isCustomDesignation, setIsCustomDesignation] = useState<boolean>(false);
   const [customCategoryDesignations, setCustomCategoryDesignations] = useState<Record<string, boolean>>({});
   const [customCategoryNames, setCustomCategoryNames] = useState<Record<string, boolean>>({});
-  const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, details?: string, price: string }[]>([]);
+  const [extraTasks, setExtraTasks] = useState<{ id: string, description: string, details?: string, price: string, discountPrice?: string }[]>([]);
 
   const [showEmailModal, setShowEmailModal] = useState<{ devis: DevisData, base64: string } | null>(null);
   const signaturePadRef = useRef<SignaturePadRef>(null);
@@ -111,9 +111,9 @@ function NouveauDevisPageContent() {
         setNotes(devisToEdit.notes || '');
         const existingGlobal = devisToEdit.globalDesignation || '';
         setGlobalDesignation(existingGlobal);
-        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString(), details: t.details || '' })) || [];
+        const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString(), details: t.details || '', discountPrice: t.discountPrice?.toString() })) || [];
         if (devisToEdit.extraTaskDescription) {
-          loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, details: '', price: devisToEdit.extraTaskPrice?.toString() || '' });
+          loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, details: '', discountPrice: undefined, price: devisToEdit.extraTaskPrice?.toString() || '' });
         }
         setExtraTasks(loadedExtraTasks);
         setCategories(devisToEdit.categories || []);
@@ -162,7 +162,7 @@ function NouveauDevisPageContent() {
         if (draft.discount !== undefined) setDiscount(draft.discount);
         if (draft.notes) setNotes(draft.notes);
         if (draft.globalDesignation) setGlobalDesignation(draft.globalDesignation);
-        if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString(), details: t.details || '' })));
+        if (draft.extraTasks) setExtraTasks(draft.extraTasks.map(t => ({ ...t, price: t.price.toString(), details: t.details || '', discountPrice: t.discountPrice?.toString() })));
         if (draft.categories) {
           setCategories(draft.categories);
           const initialCustomCats: Record<string, boolean> = {};
@@ -200,7 +200,7 @@ function NouveauDevisPageContent() {
             discount,
             notes,
             globalDesignation: globalDesignation.trim() || undefined,
-            extraTasks: extraTasks.filter(t => t.description.trim() !== '').map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0 })),
+            extraTasks: extraTasks.filter(t => t.description.trim() !== '').map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0, discountPrice: t.discountPrice ? parseFloat(t.discountPrice) : undefined })),
           });
         }
       }, 1000);
@@ -284,7 +284,10 @@ function NouveauDevisPageContent() {
 
   const subTotal = useMemo(() => {
     const windowsTotal = windows.reduce((acc, current) => acc + calculateWindowPrice(current, config), 0);
-    const extraPrice = extraTasks.reduce((acc, task) => acc + (parseFloat(task.price) || 0), 0);
+    const extraPrice = extraTasks.reduce((acc, task) => {
+      const price = task.discountPrice ? parseFloat(task.discountPrice) : parseFloat(task.price);
+      return acc + (price || 0);
+    }, 0);
     return windowsTotal + extraPrice;
   }, [windows, config, extraTasks]);
 
@@ -321,7 +324,7 @@ function NouveauDevisPageContent() {
         photos: [],
         needsSync: true,
         globalDesignation: globalDesignation.trim() || undefined,
-        extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0 })),
+        extraTasks: extraTasks.filter(t => t.description.trim() !== '' && (parseFloat(t.price) || 0) > 0).map(t => ({ id: t.id, description: t.description.trim(), details: t.details?.trim() || undefined, price: parseFloat(t.price) || 0, discountPrice: t.discountPrice ? parseFloat(t.discountPrice) : undefined })),
       };
 
       // CRITICAL: Save to store FIRST before any async PDF operation.
@@ -746,7 +749,7 @@ function NouveauDevisPageContent() {
                 <div key={task.id} className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 relative shadow-sm">
                   <button onClick={() => setExtraTasks(prev => prev.filter(t => t.id !== task.id))} className="absolute top-3 right-3 text-slate-400 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="space-y-1 md:col-span-3">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Titre de la prestation</label>
                       <input
@@ -758,7 +761,7 @@ function NouveauDevisPageContent() {
                       />
                     </div>
                     <div className="space-y-1 md:col-span-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prix (HT)</label>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Prix U. (HT)</label>
                       <div className="relative">
                         <input
                           type="number"
@@ -768,6 +771,19 @@ function NouveauDevisPageContent() {
                           className="w-full rounded-lg border-slate-300 border p-2 text-slate-800 focus:ring-2 outline-none pr-8 text-sm font-bold"
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm font-medium">€</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="text-xs font-bold text-purple-600 uppercase tracking-wider">Remise (€/U)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="Ex: 8.00"
+                          value={task.discountPrice !== undefined ? task.discountPrice : ''}
+                          onChange={(e) => setExtraTasks(prev => prev.map(t => t.id === task.id ? { ...t, discountPrice: e.target.value } : t))}
+                          className="w-full rounded-lg border-purple-200 bg-purple-50 p-2 text-purple-800 focus:ring-2 focus:ring-purple-500 outline-none pr-8 text-sm font-bold placeholder:text-purple-300"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-500 text-sm font-medium">€</span>
                       </div>
                     </div>
                   </div>
