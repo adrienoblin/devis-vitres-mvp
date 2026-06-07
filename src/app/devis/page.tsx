@@ -113,7 +113,7 @@ function NouveauDevisPageContent() {
         setGlobalDesignation(existingGlobal);
         const loadedExtraTasks = devisToEdit.extraTasks?.map(t => ({ ...t, price: t.price.toString(), details: t.details || '' })) || [];
         if (devisToEdit.extraTaskDescription) {
-          loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, price: devisToEdit.extraTaskPrice?.toString() || '' });
+          loadedExtraTasks.push({ id: uuidv4(), description: devisToEdit.extraTaskDescription, details: '', price: devisToEdit.extraTaskPrice?.toString() || '' });
         }
         setExtraTasks(loadedExtraTasks);
         setCategories(devisToEdit.categories || []);
@@ -500,6 +500,22 @@ function NouveauDevisPageContent() {
                 updateCard(w.id, { prixManuel: val === '' ? undefined : parseFloat(val) });
               }}
               className="w-full text-center h-11 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800 bg-white placeholder:text-slate-400 placeholder:font-normal shadow-sm"
+            />
+          </div>
+
+          <div className="w-full sm:w-[130px] flex flex-col gap-2">
+            <span className="text-xs font-bold text-purple-600 uppercase tracking-wide" title="Nouveau prix unitaire après remise">Remise (€/U)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              placeholder="Ex: 8.0"
+              value={w.discountPrice !== undefined ? w.discountPrice : ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateCard(w.id, { discountPrice: val === '' ? undefined : parseFloat(val) });
+              }}
+              className="w-full text-center h-11 rounded-lg border border-purple-200 outline-none focus:ring-2 focus:ring-purple-500 font-bold text-purple-800 bg-purple-50 placeholder:text-purple-300 placeholder:font-normal shadow-sm"
             />
           </div>
 

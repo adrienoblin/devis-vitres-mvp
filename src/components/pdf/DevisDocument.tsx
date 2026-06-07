@@ -254,16 +254,18 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
     const tva = totalHT * 0.21;
     const totalTTC = totalHT + tva;
 
-    const rows: { name: string, details?: string, quantity?: number, total?: number, isTravel?: boolean, isCategoryTitle?: boolean }[] = [];
+    const rows: { name: string, details?: string, quantity?: number, total?: number, originalTotal?: number, isTravel?: boolean, isCategoryTitle?: boolean }[] = [];
     const normalItems = devis.items.filter(i => !i.isFraisDeplacement);
 
     if (devis.globalDesignation) {
         const globalTotal = normalItems.reduce((acc, item) => acc + calculateWindowPrice(item, config), 0);
+        const globalOriginalTotal = normalItems.reduce((acc, item) => acc + calculateWindowPrice(item, config, true), 0);
         if (globalTotal > 0) {
             rows.push({
                 name: devis.globalDesignation,
                 quantity: 1,
                 total: globalTotal,
+                originalTotal: globalOriginalTotal,
                 isTravel: false
             });
         }
@@ -285,14 +287,15 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
         const addItemsToRows = (items: typeof normalItems) => {
             const grouped = items.reduce((acc, item) => {
                 const typeName = item.type === 'autre' ? (item.description || 'Autre prestation') : (config.windowTypes?.find(w => w.id === item.type)?.name || item.type);
-                if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0 };
+                if (!acc[typeName]) acc[typeName] = { quantity: 0, total: 0, originalTotal: 0 };
                 acc[typeName].quantity += (item.quantity || 1);
                 acc[typeName].total += calculateWindowPrice(item, config);
+                acc[typeName].originalTotal += calculateWindowPrice(item, config, true);
                 return acc;
-            }, {} as Record<string, { quantity: number, total: number }>);
+            }, {} as Record<string, { quantity: number, total: number, originalTotal: number }>);
 
             Object.entries(grouped).forEach(([name, data]) => {
-                rows.push({ name, quantity: data.quantity, total: data.total, isTravel: false });
+                rows.push({ name, quantity: data.quantity, total: data.total, originalTotal: data.originalTotal, isTravel: false });
             });
         };
 
@@ -310,11 +313,13 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                     
                     if (cat.globalDesignation) {
                         const catTotal = catItems.reduce((acc, item) => acc + calculateWindowPrice(item, config), 0);
+                        const catOriginalTotal = catItems.reduce((acc, item) => acc + calculateWindowPrice(item, config, true), 0);
                         if (catTotal > 0) {
                             rows.push({
                                 name: cat.globalDesignation,
                                 quantity: 1,
                                 total: catTotal,
+                                originalTotal: catOriginalTotal,
                                 isTravel: false
                             });
                         }
@@ -433,6 +438,25 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                         }
 
                         let displayUnitPrice = pU.toFixed(2) + " €";
+                        let originalPuElement = null;
+                        let originalTotalElement = null;
+
+                        if (row.originalTotal && row.originalTotal > rowTotal) {
+                            let originalPu = row.originalTotal / qty;
+                            if (devis.globalDesignation && row.name === devis.globalDesignation) {
+                                originalPu = row.originalTotal;
+                            }
+                            originalPuElement = (
+                                <Text style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: 8 }}>
+                                    {originalPu.toFixed(2)} €
+                                </Text>
+                            );
+                            originalTotalElement = (
+                                <Text style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: 8, fontWeight: 'normal' }}>
+                                    {row.originalTotal.toFixed(2)} €
+                                </Text>
+                            );
+                        }
 
                         return (
                             <View style={styles.tableRow} key={`row-${index}`}>
@@ -447,8 +471,14 @@ export const DevisDocument = ({ devis, client, config }: DevisDocumentProps) => 
                                     )}
                                 </View>
                                 <Text style={styles.tdQty}>{displayQuantity}</Text>
-                                <Text style={styles.tdPriceUnit}>{displayUnitPrice}</Text>
-                                <Text style={styles.tdTotal}>{rowTotal.toFixed(2)} €</Text>
+                                <View style={{ flex: 2, alignItems: 'flex-end', justifyContent: 'center' }}>
+                                    {originalPuElement}
+                                    <Text style={{ color: '#334155' }}>{displayUnitPrice}</Text>
+                                </View>
+                                <View style={{ flex: 2, alignItems: 'flex-end', justifyContent: 'center' }}>
+                                    {originalTotalElement}
+                                    <Text style={{ fontWeight: 'bold', color: '#0f172a' }}>{rowTotal.toFixed(2)} €</Text>
+                                </View>
                             </View>
                         );
                     })}

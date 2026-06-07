@@ -15,6 +15,7 @@ export interface WindowItem {
     quantity: number;
     description?: string; // For "autre"
     prixManuel?: number;  // For "autre"
+    discountPrice?: number; // Negotiated unit price
     note?: string;        // New text
     isFraisDeplacement?: boolean; // For travel cost
 }
@@ -94,7 +95,11 @@ interface PricingConfigParams {
     windowTypes?: { id: string, name: string, price: number }[];
 }
 
-export function calculateWindowPrice(item: Omit<WindowItem, 'id'>, config: PricingConfigParams): number {
+export function calculateWindowPrice(item: Omit<WindowItem, 'id'>, config: PricingConfigParams, ignoreDiscount = false): number {
+    if (!ignoreDiscount && item.discountPrice !== undefined && item.discountPrice !== null && !isNaN(item.discountPrice)) {
+        return item.discountPrice * item.quantity;
+    }
+
     if (item.prixManuel !== undefined && item.prixManuel !== null) {
         return item.prixManuel * item.quantity;
     }
